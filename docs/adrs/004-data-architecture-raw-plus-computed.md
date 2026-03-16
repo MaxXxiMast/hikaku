@@ -1,8 +1,11 @@
 # ADR-004: Data Architecture — Raw + Computed Storage
 
-**Status**: Accepted
+**Status**: Accepted (updated 2026-03-17 — storage location changed from Redis to Convex)
 **Date**: 2026-03-16
 **Deciders**: Purujit Negi, Claude (AI pair)
+**Superseded by**: [ADR-011](011-backend-convex-ai-first.md) for storage location.
+
+> **NOTE**: The decision to store raw + computed data remains valid. The storage location changed from Upstash Redis (original) to Convex (current). Raw + computed data lives in Convex as source of truth. Redis caches only computed metrics (4h TTL) for fast reads.
 
 ## Context
 
@@ -54,16 +57,20 @@ Per channel:
   totalViews: number
   videoCount: number
   joinedDate: string
+  uploadsPlaylistId: string
 }
 ```
 
 ## Computation Engine
 
-The analysis scripts built during the initial WW vs FRA comparison are ported to server-side TypeScript modules:
-- `youtube-channel-stats.mjs` → `lib/youtube/client.ts`
-- `youtube-video-breakdown.mjs` → `lib/youtube/metrics.ts` (categories, duration, title patterns)
-- `engagement-comparison.mjs` → `lib/youtube/metrics.ts` (engagement computation)
-- `deep-inference.mjs` → `lib/youtube/metrics.ts` (distribution, posting patterns, SEO)
+The analysis scripts built during the initial WW vs FRA comparison are ported to server-side TypeScript modules (see spec Section 8 and Section 17 for canonical mapping):
+- `youtube-channel-stats.mjs` → `lib/youtube/client.ts` (channel resolution, video fetching)
+- `youtube-video-breakdown.mjs` → `lib/youtube/categories.ts` + `lib/youtube/titles.ts` + `lib/youtube/patterns.ts`
+- `engagement-comparison.mjs` → `lib/youtube/engagement.ts`
+- `deep-inference.mjs` → `lib/youtube/distribution.ts` + `lib/youtube/patterns.ts`
+- Summary generation → `lib/youtube/summary.ts`
+- Shared types → `lib/youtube/types.ts`
+- Orchestration → `lib/youtube/metrics.ts` (coordinates all modules)
 
 Same algorithms, same output. Proven against real data.
 

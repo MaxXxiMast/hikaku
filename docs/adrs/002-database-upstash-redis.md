@@ -1,9 +1,14 @@
 # ADR-002: Cache Layer — Upstash Redis
 
-**Status**: Accepted (updated 2026-03-17 — scoped to cache layer only)
+**Status**: Superseded for data storage (updated 2026-03-17). Redis is now CACHE ONLY.
 **Date**: 2026-03-16
 **Deciders**: Purujit Negi, Claude (AI pair)
-**Related**: [ADR-011](011-backend-convex-ai-first.md) — Convex as persistent backend
+**Superseded by**: [ADR-011](011-backend-convex-ai-first.md) — Convex is now the source of truth for all report data.
+
+> **WARNING**: This ADR's original data structure and TTL sections are outdated. Redis no longer stores raw data or full reports. See ADR-011 for current architecture. Redis role is limited to:
+> - Hot cache for computed metrics: key `report:{id}:computed`, TTL 4 hours
+> - Rate limiting: key `ratelimit:{ip}`, TTL 1 hour
+> - In-progress comparison state: ephemeral, minutes TTL
 
 ## Context
 

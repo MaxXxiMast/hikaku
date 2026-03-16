@@ -246,7 +246,7 @@ Analytics is a core discipline, not an afterthought. Every feature ships with in
 - Don't use colors outside the Kintsugi/Washi Gold token system
 - Don't add authentication for V1 (no auth wall on reports)
 - Don't add payment/billing for V1
-- Don't store data beyond 24h TTL (no permanent storage)
+- Don't store anonymous report data beyond 72h (Convex purge job handles this). Logged-in saved reports are permanent.
 - Don't add features beyond the defined report sections without discussion
 - Don't use `console.log` for debugging — use structured logging if needed
 - Don't skip tests — TDD is mandatory, not optional

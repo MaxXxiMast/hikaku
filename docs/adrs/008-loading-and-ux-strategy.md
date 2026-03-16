@@ -23,15 +23,17 @@ During the initial fetch, show a progress bar with rotating content:
 - Wabi-sabi quotes ("In the beginner's mind there are many possibilities")
 
 **2. Phased Section Reveal**
-As data becomes available, sections slide in progressively:
+As data becomes available, sections slide in progressively. See the design spec Section 4.2 for the canonical 9-stage timeline (~0s through ~16s). The stages are driven by the computation pipeline:
 ```
-[0s]   Start → Loading screen with facts/tips
-[2s]   Channels resolved → Channel overview cards appear
-[4s]   Videos fetched → Video count shown, computation starts
-[6s]   Engagement computed → Engagement section slides in
-[8s]   Categories computed → Content breakdown appears
-[10s]  Patterns computed → Posting patterns appear
-[12s]  All complete → Remaining sections + share/download buttons
+[0s]   Loading screen with facts
+[~2s]  Channel Overview cards appear (channels resolved)
+[~4s]  Executive Summary appears
+[~6s]  MoM Viewership chart appears
+[~8s]  Engagement section appears
+[~10s] Growth + Distribution appear
+[~12s] Posting Patterns + Title/SEO appear
+[~14s] Content Categories + Subscriber Efficiency appear
+[~16s] Freshness + Verdict appear → Share/Download bar slides up
 ```
 
 ## Inspiration

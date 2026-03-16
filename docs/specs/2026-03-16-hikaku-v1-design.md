@@ -162,7 +162,7 @@ Beauty in imperfection, transience, simplicity. Applied to UI:
 **Behavior**:
 - Channel handles validated on blur (@ prefix auto-added)
 - Minimum 2 channels required to submit
-- On submit: POST /api/compare → redirect to /compare with streaming data
+- On submit: client-side navigation to `/compare?channels=@a,@b`. The compare page opens an SSE connection to `/api/compare` on mount. No form POST redirect — the URL changes via `router.push`, then the page consumes the stream.
 
 **Responsive**:
 - Mobile: stacked inputs, full-width button
@@ -221,7 +221,7 @@ Beauty in imperfection, transience, simplicity. Applied to UI:
 - Same as /compare but with "Report generated X hours ago" timestamp
 - "Expires in Y hours" indicator (gold, counts down) — only for public shared links
 - Share + Download buttons
-- "Save to account" button (if logged in, report not yet saved)
+- "Save to account" button (V1.5 — hidden in V1, schema fields exist but UI gated behind auth)
 
 ### 4.4 Expired Report — `/r/[id]/expired`
 
@@ -306,7 +306,14 @@ Each section is an independent React component that receives computed data as pr
 **Display**: Comparison cards showing recent performance trend.
 **Component**: `<ContentFreshness />`
 
-### 5.11 Head-to-Head Verdict
+### 5.11 Subscriber Efficiency
+
+**Data**: Views per subscriber (lifetime), views per subscriber per video.
+**Display**: Comparison cards per channel showing efficiency metrics. Highlights which channel extracts more value per subscriber.
+**Component**: `<SubscriberEfficiency />`
+**Type**: `SubscriberEfficiencyData { viewsPerSub: number; viewsPerSubPerVideo: number }`
+
+### 5.12 Head-to-Head Verdict
 
 **Data**: Multi-dimension scorecard — which channel wins each dimension.
 **Display**: Table with dimensions, winner indicator (channel color dot), margin, notes.
@@ -336,7 +343,7 @@ Each section is an independent React component that receives computed data as pr
 6. Store raw + computed data in Convex (source of truth)
 7. Cache computed metrics in Redis (hot cache, 4h TTL)
 8. Set report as public with 6h expiry (Convex scheduled job)
-9. If logged in: save to user's search history in Convex
+9. If logged in (V1.5): save to user's search history in Convex
 10. Track `comparison_completed` event (PostHog)
 11. Return report ID + computed data
 
@@ -707,7 +714,7 @@ Client-side generation:
 |---------|-----------|
 | API key exposure | Server-side proxy only. Keys never reach client. |
 | Rate limiting | Per-IP via Redis, 10 req/hour on /api/compare |
-| Input validation | Sanitize channel handles. Reject non-alphanumeric (except @, _, -). |
+| Input validation | Sanitize channel handles. Allow only `[a-zA-Z0-9_-]` with optional `@` prefix. Regex: `/^@?[a-zA-Z0-9_-]+$/` |
 | Convex access | Convex functions enforce auth checks. Public queries expose only public reports. |
 | Redis injection | Parameterized keys (report:{nanoid}). No user input in key construction. |
 | XSS | React default escaping. No raw HTML injection. All content rendered via React components. |
@@ -795,7 +802,7 @@ hikaku/
 ├── .claude/
 │   └── CLAUDE.md                # AI project instructions
 ├── docs/
-│   ├── adrs/                    # Architecture Decision Records (001-012)
+│   ├── adrs/                    # Architecture Decision Records (001-013)
 │   ├── brainstorm/              # Session capture notes
 │   ├── decisions/               # Decision log
 │   └── specs/                   # Product specifications (this file)
@@ -904,11 +911,13 @@ Full details in [ADR-012](../adrs/012-analytics-driven-development.md).
 
 | Event | Trigger | Properties |
 |-------|---------|-----------|
+| landing_visited | Landing page loaded | referrer, utmSource, utmMedium |
 | comparison_started | User clicks Compare | channels, channelCount |
 | comparison_completed | Report fully rendered | reportId, durationMs, channelCount |
 | comparison_failed | API error | error, channels |
 | report_viewed | Report page loaded | reportId, source |
 | report_section_visible | Section scrolls into viewport | reportId, section |
+| report_scrolled | User scrolls through report | reportId, depthPercent |
 | report_shared | Share button clicked | reportId, method |
 | shared_link_opened | Someone opens a shared link | reportId, referrer |
 | report_expired_viewed | Expired page loaded | reportId, channels |

@@ -30,7 +30,7 @@ Rejected: Formik (legacy, re-render issues), TanStack Form (overkill for 1 form)
 ```typescript
 // Shared schema — used by landing page form AND POST /api/compare
 const compareSchema = z.object({
-  channels: z.array(z.string().regex(/^@?[\w-]+$/))
+  channels: z.array(z.string().regex(/^@?[a-zA-Z0-9_-]+$/))
     .min(2, "At least 2 channels required")
     .max(4, "Maximum 4 channels"),
   apiKey: z.string().optional(),

@@ -80,7 +80,7 @@ The biggest risk to a startup isn't vendor lock-in — it's not shipping fast en
 
 ```
 Upstash Redis (Cache Layer)
-├── Report data cache (24h TTL)    ← Native TTL, auto-cleanup
+├── Hot computed metrics cache (4h TTL)  ← Native TTL, auto-cleanup
 ├── Rate limiting                   ← Fast, ephemeral
 └── Session tokens                  ← Fast lookup
 

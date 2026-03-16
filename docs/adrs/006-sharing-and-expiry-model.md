@@ -32,7 +32,7 @@ Shareable report URLs are Hikaku's primary growth mechanism. Every shared link i
 User creates comparison
   → Shares link on Twitter/LinkedIn/WhatsApp
     → Recipient views report (rich OG preview attracts clicks)
-      → Report expires after 24h
+      → Report link expires after 6h
         → Expired page shows "Re-generate" CTA
           → New user creates their own comparison
             → Cycle repeats
