@@ -30,6 +30,10 @@ All architectural and product decisions with rationale. Each major decision has 
 | 22 | Shareable Link Expiry | 6 hours (not 24h — shorter is enough for social sharing cycle) | [ADR-006](../adrs/006-sharing-and-expiry-model.md) | 2026-03-17 |
 | 23 | Anonymous Data Lifecycle | Raw data purged at 72h. Only metadata (channels, timestamp) kept permanently for analytics | [ADR-011](../adrs/011-backend-convex-ai-first.md) | 2026-03-17 |
 | 24 | Data Split | Convex = source of truth (raw + computed + permanent). Redis = hot cache + ephemeral only | [ADR-002](../adrs/002-database-upstash-redis.md), [ADR-011](../adrs/011-backend-convex-ai-first.md) | 2026-03-17 |
+| 25 | Server State | Convex hooks (useQuery/useMutation). No TanStack Query — redundant with Convex | [ADR-013](../adrs/013-frontend-state-and-forms.md) | 2026-03-17 |
+| 26 | Forms | React Hook Form + Zod (shared client+server validation) | [ADR-013](../adrs/013-frontend-state-and-forms.md) | 2026-03-17 |
+| 27 | Client State | None — component-local + next-themes. No Zustand/Redux (YAGNI) | [ADR-013](../adrs/013-frontend-state-and-forms.md) | 2026-03-17 |
+| 28 | API Middleware | Composable utilities (withValidation, withRateLimit). No framework | [ADR-013](../adrs/013-frontend-state-and-forms.md) | 2026-03-17 |
 
 ## Rejected Alternatives
 

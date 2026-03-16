@@ -15,14 +15,18 @@ Hikaku is a YouTube channel comparison platform that lets users compare up to 4 
 | Framework | Next.js 15 (App Router, React 19) | SSR, routing, API routes |
 | Styling | Tailwind CSS v4 + shadcn/ui (Kintsugi-themed) | Design system, components |
 | Charts | Recharts | Data visualization |
-| Persistent Backend | Convex | Users, auth, history, AI personalization, vector search |
-| Cache | Upstash Redis | Report cache (24h TTL), rate limiting |
+| Persistent Backend | Convex | Users, auth, reports, AI personalization, vector search |
+| Cache | Upstash Redis | Hot cache (4h TTL), rate limiting, ephemeral state |
 | Hosting | Vercel | Edge hosting, serverless |
+| Forms | React Hook Form + Zod | Form state, client+server validation |
+| Server State | Convex hooks (useQuery, useMutation) | No TanStack Query — Convex handles caching/reactivity |
+| Client State | None (component-local + next-themes) | No Zustand/Redux — zero global state in V1 |
+| Theme | next-themes | Dark/light toggle, shadcn standard |
 | Fonts | Zen Kaku Gothic New (body) + Crimson Pro (display/kanji) | Typography |
 | PDF | html2canvas + jsPDF (client-side) | Report export |
-| OG Images | @vercel/og | Dynamic social preview cards |
-| Analytics | Vercel Analytics | Usage tracking |
-| Images (V1) | next/image + @vercel/og | No external service needed |
+| OG Images | @vercel/og + next/image | Dynamic social previews, thumbnail optimization |
+| Product Analytics | PostHog | Events, funnels, session replays |
+| Web Vitals | Vercel Analytics | Performance monitoring |
 
 ## Design System — Kintsugi (金継ぎ)
 

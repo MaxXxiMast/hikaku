@@ -46,6 +46,10 @@ Built from a real analysis comparing Wint Wealth (@WintWealthYT, 729K subs) vs F
 | OG Images | @vercel/og + next/image | Social previews, thumbnails | [ADR-010](../adrs/010-image-service-evaluation.md) |
 | Product Analytics | PostHog | Events, funnels, session replays | [ADR-012](../adrs/012-analytics-driven-development.md) |
 | Web Vitals | Vercel Analytics | Performance monitoring | — |
+| Forms | React Hook Form + Zod | Form state, shared client+server validation | [ADR-013](../adrs/013-frontend-state-and-forms.md) |
+| Server State | Convex hooks (useQuery/useMutation) | Reactive, auto-typed, no TanStack Query | [ADR-013](../adrs/013-frontend-state-and-forms.md) |
+| Client State | Component-local + next-themes | No global state library (YAGNI) | [ADR-013](../adrs/013-frontend-state-and-forms.md) |
+| API Middleware | Composable utilities (withValidation, withRateLimit) | Lightweight, typed, no framework | [ADR-013](../adrs/013-frontend-state-and-forms.md) |
 
 ---
 
