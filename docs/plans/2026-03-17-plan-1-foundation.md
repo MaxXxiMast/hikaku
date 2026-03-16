@@ -33,7 +33,6 @@ hikaku/
 │   │   │   ├── tabs.tsx
 │   │   │   ├── dialog.tsx
 │   │   │   ├── tooltip.tsx
-│   │   │   ├── toaster.tsx
 │   │   │   └── sonner.tsx
 │   │   ├── layout/
 │   │   │   ├── Header.tsx          # Logo + nav + theme toggle
@@ -45,6 +44,7 @@ hikaku/
 │   │       └── PostHogProvider.tsx  # PostHog client provider
 │   ├── lib/
 │   │   ├── redis.ts                # Upstash Redis client
+│   │   ├── rate-limit.ts           # Per-IP rate limiting via Redis
 │   │   ├── analytics.ts            # Typed PostHog wrapper
 │   │   ├── utils.ts                # cn() + shared utilities
 │   │   └── validations.ts          # Zod schemas (shared client+server)
@@ -54,15 +54,16 @@ hikaku/
 │   ├── schema.ts                   # Convex data schema
 │   ├── reports.ts                  # Report queries/mutations
 │   └── crons.ts                    # Scheduled jobs (placeholder)
-├── __tests__/
-│   ├── lib/
-│   │   ├── analytics.test.ts       # Analytics wrapper tests
-│   │   ├── redis.test.ts           # Redis client tests
-│   │   └── validations.test.ts     # Zod schema tests
-│   └── components/
-│       ├── Header.test.tsx         # Header rendering tests
-│       ├── Footer.test.tsx         # Footer rendering tests
-│       └── ThemeToggle.test.tsx    # Theme toggle tests
+│   └── __tests__/
+│       ├── lib/
+│       │   ├── analytics.test.ts       # Analytics wrapper tests
+│       │   ├── redis.test.ts           # Redis client tests
+│       │   └── validations.test.ts     # Zod schema tests
+│       └── components/
+│           ├── providers.test.tsx      # Provider rendering tests
+│           ├── Header.test.tsx         # Header rendering tests
+│           ├── Footer.test.tsx         # Footer rendering tests
+│           └── ThemeToggle.test.tsx    # Theme toggle tests
 ├── .env.local.example              # Environment variable template
 ├── next.config.ts
 ├── tailwind.config.ts
@@ -158,8 +159,8 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
-    setupFiles: ['./__tests__/setup.ts'],
-    include: ['__tests__/**/*.test.{ts,tsx}'],
+    setupFiles: ['./src/__tests__/setup.ts'],
+    include: ['src/__tests__/**/*.test.{ts,tsx}'],
     coverage: {
       reporter: ['text', 'lcov'],
       include: ['src/**/*.{ts,tsx}'],
@@ -176,7 +177,7 @@ export default defineConfig({
 
 - [ ] **Step 2: Create test setup file**
 
-Create `__tests__/setup.ts`:
+Create `src/__tests__/setup.ts`:
 ```typescript
 import '@testing-library/jest-dom/vitest'
 ```
@@ -196,7 +197,7 @@ Add to `package.json` scripts:
 
 - [ ] **Step 4: Write a smoke test to verify setup**
 
-Create `__tests__/setup.test.ts`:
+Create `src/__tests__/setup.test.ts`:
 ```typescript
 import { describe, it, expect } from 'vitest'
 
@@ -218,7 +219,7 @@ Expected: 1 test passes.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add vitest.config.ts __tests__/ package.json
+git add vitest.config.ts src/__tests__/ package.json
 git commit -m "chore: configure Vitest with React Testing Library and jsdom"
 ```
 
@@ -373,20 +374,14 @@ git commit -m "feat: add Kintsugi dark + Washi Gold V2 light design tokens"
 - Modify: `src/app/globals.css`
 - Create: `src/lib/utils.ts`
 
-- [ ] **Step 1: Initialize shadcn/ui**
+- [ ] **Step 1: Initialize shadcn/ui (non-interactive for agentic execution)**
 
 ```bash
 cd /Users/purujitnegi/Desktop/puru-codes/hikaku
-pnpm dlx shadcn@latest init
+pnpm dlx shadcn@latest init --defaults
 ```
 
-When prompted:
-- Style: Default
-- Base color: Neutral (we override everything)
-- CSS variables: Yes
-- Tailwind config: `tailwind.config.ts`
-- Components alias: `@/components`
-- Utils alias: `@/lib/utils`
+> **Note:** `--defaults` skips all prompts. If this flag is unavailable in the installed version, run interactively with: Style=Default, Base color=Neutral, CSS variables=Yes, Components=`@/components`, Utils=`@/lib/utils`.
 
 - [ ] **Step 2: Replace globals.css with our theme**
 
@@ -461,15 +456,25 @@ git commit -m "feat: install shadcn/ui components (button, input, card, table, t
 
 - [ ] **Step 1: Write the failing test**
 
-Create `__tests__/app/layout.test.tsx`:
+Create `src/__tests__/app/layout.test.tsx`:
 ```typescript
 import { describe, it, expect } from 'vitest'
+import { render } from '@testing-library/react'
+
+// Note: next/font/google is mocked in Vitest (it returns CSS variable classNames)
+// We test that the layout renders with font CSS variable classes
 
 describe('Font configuration', () => {
-  it('should export Crimson Pro and Zen Kaku Gothic New font variables', async () => {
-    // Verify the font module exports are valid
-    const layout = await import('@/app/layout')
-    expect(layout).toBeDefined()
+  it('renders layout with font CSS variable class names', async () => {
+    const { default: RootLayout } = await import('@/app/layout')
+    const { container } = render(
+      <RootLayout>
+        <div data-testid="child">test</div>
+      </RootLayout>
+    )
+    const body = container.querySelector('body')
+    // After font config, body should have font variable classes
+    expect(body?.className).toContain('font-sans')
   })
 })
 ```
@@ -477,10 +482,10 @@ describe('Font configuration', () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 ```bash
-pnpm test -- __tests__/app/layout.test.tsx
+pnpm test -- src/__tests__/app/layout.test.tsx
 ```
 
-Expected: FAIL (layout not yet configured properly).
+Expected: FAIL — the default scaffold layout doesn't have `font-sans` with our font variables configured.
 
 - [ ] **Step 3: Configure fonts in layout.tsx**
 
@@ -524,20 +529,22 @@ export default function RootLayout({
 }
 ```
 
-- [ ] **Step 4: Update Tailwind config with font families**
+- [ ] **Step 4: Add font families to design tokens (Tailwind v4 pattern)**
 
-Add to `tailwind.config.ts` theme.extend:
-```typescript
-fontFamily: {
-  sans: ["var(--font-zen-kaku)", "system-ui", "sans-serif"],
-  display: ["var(--font-crimson)", "Georgia", "serif"],
-},
+Tailwind v4 uses `@theme` in CSS, not `tailwind.config.ts`. Add to the end of `src/styles/tokens.css`:
+```css
+@theme {
+  --font-sans: var(--font-zen-kaku), system-ui, sans-serif;
+  --font-display: var(--font-crimson), Georgia, serif;
+}
 ```
+
+> **Note:** Tailwind v4 does NOT use `tailwind.config.ts` for theme extension. All theme customization lives in CSS via `@theme`. Do NOT add fontFamily to tailwind.config.ts.
 
 - [ ] **Step 5: Run test to verify it passes**
 
 ```bash
-pnpm test -- __tests__/app/layout.test.tsx
+pnpm test -- src/__tests__/app/layout.test.tsx
 ```
 
 Expected: PASS.
@@ -553,7 +560,7 @@ Expected: Build succeeds.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/app/layout.tsx tailwind.config.ts __tests__/app/
+git add src/app/layout.tsx src/styles/tokens.css src/__tests__/app/
 git commit -m "feat: configure Crimson Pro (display) + Zen Kaku Gothic New (body) fonts"
 ```
 
@@ -600,8 +607,8 @@ export default defineSchema({
 
     // Data
     raw: v.object({
-      channels: v.any(),
-      videos: v.any(),
+      channels: v.array(v.any()),
+      videos: v.array(v.any()),
     }),
     computed: v.any(),
   })
@@ -664,7 +671,7 @@ export const getPublic = query({
   handler: async (ctx, args) => {
     const report = await ctx.db.get(args.id)
     if (!report) return null
-    if (!report.isPublic && Date.now() > report.publicExpiresAt) {
+    if (!report.isPublic || Date.now() > report.publicExpiresAt) {
       return { expired: true, channelHandles: report.channelHandles }
     }
     return report
@@ -706,6 +713,8 @@ const crons = cronJobs()
 export default crons
 ```
 
+> **Deferred files:** `convex/users.ts` and `convex/history.ts` are listed in the spec's project structure but depend on Clerk auth integration (V1.5 scope). They will be created in a later plan when auth is implemented.
+
 - [ ] **Step 5: Deploy Convex schema**
 
 ```bash
@@ -729,7 +738,7 @@ git commit -m "feat: set up Convex schema with reports table, mutations, queries
 
 - [ ] **Step 1: Write the failing test**
 
-Create `__tests__/lib/redis.test.ts`:
+Create `src/__tests__/lib/redis.test.ts`:
 ```typescript
 import { describe, it, expect, vi } from 'vitest'
 
@@ -763,7 +772,7 @@ describe('Redis client', () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 ```bash
-pnpm test -- __tests__/lib/redis.test.ts
+pnpm test -- src/__tests__/lib/redis.test.ts
 ```
 
 Expected: FAIL — module not found.
@@ -790,20 +799,14 @@ export async function getCachedReport(reportId: string): Promise<unknown | null>
   return typeof data === 'string' ? JSON.parse(data) : data
 }
 
-export async function checkRateLimit(ip: string, maxRequests = 10): Promise<boolean> {
-  const key = `ratelimit:${ip}`
-  const current = await redis.incr(key)
-  if (current === 1) {
-    await redis.expire(key, 3600) // 1 hour window
-  }
-  return current <= maxRequests
-}
+// Note: Rate limiting is in a separate module (src/lib/rate-limit.ts) per spec.
+// See Task 10b below.
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
 
 ```bash
-pnpm test -- __tests__/lib/redis.test.ts
+pnpm test -- src/__tests__/lib/redis.test.ts
 ```
 
 Expected: PASS.
@@ -811,8 +814,36 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/lib/redis.ts __tests__/lib/redis.test.ts
+git add src/lib/redis.ts src/__tests__/lib/redis.test.ts
 git commit -m "feat: set up Upstash Redis client with cache and rate limiting helpers"
+```
+
+### Task 10b: Create rate-limit module
+
+**Files:**
+- Create: `src/lib/rate-limit.ts`
+
+- [ ] **Step 1: Implement rate limiter**
+
+Create `src/lib/rate-limit.ts`:
+```typescript
+import { redis } from './redis'
+
+export async function checkRateLimit(ip: string, maxRequests = 10, windowSeconds = 3600): Promise<boolean> {
+  const key = `ratelimit:${ip}`
+  const current = await redis.incr(key)
+  if (current === 1) {
+    await redis.expire(key, windowSeconds)
+  }
+  return current <= maxRequests
+}
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add src/lib/rate-limit.ts
+git commit -m "feat: extract rate limiting to separate module per spec"
 ```
 
 ### Task 11: Set up PostHog analytics wrapper
@@ -823,7 +854,7 @@ git commit -m "feat: set up Upstash Redis client with cache and rate limiting he
 
 - [ ] **Step 1: Write the failing test**
 
-Create `__tests__/lib/analytics.test.ts`:
+Create `src/__tests__/lib/analytics.test.ts`:
 ```typescript
 import { describe, it, expect, vi } from 'vitest'
 
@@ -858,7 +889,7 @@ describe('Analytics', () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 ```bash
-pnpm test -- __tests__/lib/analytics.test.ts
+pnpm test -- src/__tests__/lib/analytics.test.ts
 ```
 
 Expected: FAIL — module not found.
@@ -916,7 +947,7 @@ export type { HikakuEvent }
 - [ ] **Step 4: Run test to verify it passes**
 
 ```bash
-pnpm test -- __tests__/lib/analytics.test.ts
+pnpm test -- src/__tests__/lib/analytics.test.ts
 ```
 
 Expected: PASS.
@@ -924,7 +955,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/lib/analytics.ts __tests__/lib/analytics.test.ts
+git add src/lib/analytics.ts src/__tests__/lib/analytics.test.ts
 git commit -m "feat: add typed PostHog analytics wrapper with HikakuEvent schema"
 ```
 
@@ -936,7 +967,7 @@ git commit -m "feat: add typed PostHog analytics wrapper with HikakuEvent schema
 
 - [ ] **Step 1: Write the failing tests**
 
-Create `__tests__/lib/validations.test.ts`:
+Create `src/__tests__/lib/validations.test.ts`:
 ```typescript
 import { describe, it, expect } from 'vitest'
 import { compareSchema } from '@/lib/validations'
@@ -995,7 +1026,7 @@ describe('compareSchema', () => {
 - [ ] **Step 2: Run tests to verify they fail**
 
 ```bash
-pnpm test -- __tests__/lib/validations.test.ts
+pnpm test -- src/__tests__/lib/validations.test.ts
 ```
 
 Expected: FAIL — module not found.
@@ -1025,7 +1056,7 @@ export type CompareInput = z.infer<typeof compareSchema>
 - [ ] **Step 4: Run tests to verify they pass**
 
 ```bash
-pnpm test -- __tests__/lib/validations.test.ts
+pnpm test -- src/__tests__/lib/validations.test.ts
 ```
 
 Expected: All 7 tests PASS.
@@ -1033,7 +1064,7 @@ Expected: All 7 tests PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/lib/validations.ts __tests__/lib/validations.test.ts
+git add src/lib/validations.ts src/__tests__/lib/validations.test.ts
 git commit -m "feat: add Zod validation schemas for channel comparison input"
 ```
 
@@ -1047,6 +1078,42 @@ git commit -m "feat: add Zod validation schemas for channel comparison input"
 - Create: `src/components/providers/ThemeProvider.tsx`
 - Create: `src/components/providers/ConvexProvider.tsx`
 - Create: `src/components/providers/PostHogProvider.tsx`
+
+- [ ] **Step 0: Write failing tests for providers**
+
+Create `src/__tests__/components/providers.test.tsx`:
+```typescript
+import { describe, it, expect, vi } from 'vitest'
+import { render, screen } from '@testing-library/react'
+
+vi.mock('next-themes', () => ({
+  ThemeProvider: ({ children }: { children: React.ReactNode }) => <div data-testid="theme-provider">{children}</div>,
+}))
+
+vi.mock('convex/react', () => ({
+  ConvexProvider: ({ children }: { children: React.ReactNode }) => <div data-testid="convex-provider">{children}</div>,
+  ConvexReactClient: vi.fn(),
+}))
+
+describe('ThemeProvider', () => {
+  it('renders children', async () => {
+    const { ThemeProvider } = await import('@/components/providers/ThemeProvider')
+    render(<ThemeProvider><span>child</span></ThemeProvider>)
+    expect(screen.getByText('child')).toBeInTheDocument()
+  })
+})
+
+describe('PostHogProvider', () => {
+  it('renders children', async () => {
+    const { PostHogProvider } = await import('@/components/providers/PostHogProvider')
+    render(<PostHogProvider><span>child</span></PostHogProvider>)
+    expect(screen.getByText('child')).toBeInTheDocument()
+  })
+})
+```
+
+Run: `pnpm test -- src/__tests__/components/providers.test.tsx`
+Expected: FAIL — modules not found.
 
 - [ ] **Step 1: Create ThemeProvider**
 
@@ -1134,10 +1201,18 @@ export default function RootLayout({
 }
 ```
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Run provider tests**
 
 ```bash
-git add src/components/providers/ src/app/layout.tsx
+pnpm test -- src/__tests__/components/providers.test.tsx
+```
+
+Expected: PASS.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add src/components/providers/ src/app/layout.tsx src/__tests__/components/providers.test.tsx
 git commit -m "feat: add ThemeProvider, ConvexProvider, PostHogProvider and wire into root layout"
 ```
 
@@ -1149,7 +1224,7 @@ git commit -m "feat: add ThemeProvider, ConvexProvider, PostHogProvider and wire
 
 - [ ] **Step 1: Write the failing test**
 
-Create `__tests__/components/ThemeToggle.test.tsx`:
+Create `src/__tests__/components/ThemeToggle.test.tsx`:
 ```typescript
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
@@ -1175,7 +1250,7 @@ describe('ThemeToggle', () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 ```bash
-pnpm test -- __tests__/components/ThemeToggle.test.tsx
+pnpm test -- src/__tests__/components/ThemeToggle.test.tsx
 ```
 
 Expected: FAIL — component not found.
@@ -1209,7 +1284,7 @@ export function ThemeToggle() {
 - [ ] **Step 4: Run test to verify it passes**
 
 ```bash
-pnpm test -- __tests__/components/ThemeToggle.test.tsx
+pnpm test -- src/__tests__/components/ThemeToggle.test.tsx
 ```
 
 Expected: PASS.
@@ -1217,7 +1292,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/components/layout/ThemeToggle.tsx __tests__/components/ThemeToggle.test.tsx
+git add src/components/layout/ThemeToggle.tsx src/__tests__/components/ThemeToggle.test.tsx
 git commit -m "feat: add ThemeToggle component with dark/light switching"
 ```
 
@@ -1229,7 +1304,7 @@ git commit -m "feat: add ThemeToggle component with dark/light switching"
 
 - [ ] **Step 1: Write the failing test**
 
-Create `__tests__/components/Header.test.tsx`:
+Create `src/__tests__/components/Header.test.tsx`:
 ```typescript
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
@@ -1256,7 +1331,7 @@ describe('Header', () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 ```bash
-pnpm test -- __tests__/components/Header.test.tsx
+pnpm test -- src/__tests__/components/Header.test.tsx
 ```
 
 Expected: FAIL.
@@ -1290,7 +1365,7 @@ export function Header() {
 - [ ] **Step 4: Run test to verify it passes**
 
 ```bash
-pnpm test -- __tests__/components/Header.test.tsx
+pnpm test -- src/__tests__/components/Header.test.tsx
 ```
 
 Expected: PASS.
@@ -1298,7 +1373,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/components/layout/Header.tsx __tests__/components/Header.test.tsx
+git add src/components/layout/Header.tsx src/__tests__/components/Header.test.tsx
 git commit -m "feat: add Header with Hikaku logo (kanji + romanized) and theme toggle"
 ```
 
@@ -1310,7 +1385,7 @@ git commit -m "feat: add Header with Hikaku logo (kanji + romanized) and theme t
 
 - [ ] **Step 1: Write the failing test**
 
-Create `__tests__/components/Footer.test.tsx`:
+Create `src/__tests__/components/Footer.test.tsx`:
 ```typescript
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
@@ -1333,7 +1408,7 @@ describe('Footer', () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 ```bash
-pnpm test -- __tests__/components/Footer.test.tsx
+pnpm test -- src/__tests__/components/Footer.test.tsx
 ```
 
 Expected: FAIL.
@@ -1365,7 +1440,7 @@ export function Footer() {
 - [ ] **Step 4: Run test to verify it passes**
 
 ```bash
-pnpm test -- __tests__/components/Footer.test.tsx
+pnpm test -- src/__tests__/components/Footer.test.tsx
 ```
 
 Expected: PASS.
@@ -1373,7 +1448,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/components/layout/Footer.tsx __tests__/components/Footer.test.tsx
+git add src/components/layout/Footer.tsx src/__tests__/components/Footer.test.tsx
 git commit -m "feat: add Footer with wabi-sabi tagline and GitHub link"
 ```
 
@@ -1449,11 +1524,15 @@ git add src/app/page.tsx
 git commit -m "feat: add placeholder landing page with header, footer, Kintsugi theme verification"
 ```
 
-- [ ] **Step 6: Push all Plan 1 work**
+- [ ] **Step 6: Push and open PR**
 
 ```bash
-git push origin master
+git push origin feature/plan-1-foundation
 ```
+
+Then open a PR from `feature/plan-1-foundation` → `master` using the project's PR template.
+
+> **Note:** All Plan 1 work should be on branch `feature/plan-1-foundation`. Create this branch before Task 1 begins: `git checkout -b feature/plan-1-foundation`
 
 ---
 
