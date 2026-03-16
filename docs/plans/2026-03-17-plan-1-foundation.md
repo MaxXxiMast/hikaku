@@ -42,6 +42,8 @@ hikaku/
 │   │       ├── ConvexProvider.tsx   # Convex client provider
 │   │       ├── ThemeProvider.tsx    # next-themes provider
 │   │       └── PostHogProvider.tsx  # PostHog client provider
+│   │   └── analytics/
+│   │       └── LandingAnalytics.tsx # landing_visited event (ADD)
 │   ├── lib/
 │   │   ├── redis.ts                # Upstash Redis client
 │   │   ├── rate-limit.ts           # Per-IP rate limiting via Redis
@@ -1457,17 +1459,43 @@ git commit -m "feat: add Footer with wabi-sabi tagline and GitHub link"
 **Files:**
 - Modify: `src/app/page.tsx`
 
-- [ ] **Step 1: Create placeholder landing page**
+- [ ] **Step 1: Create the LandingAnalytics client component (ADD compliance)**
+
+Every page ships with analytics. Create `src/components/analytics/LandingAnalytics.tsx`:
+```typescript
+"use client"
+
+import { useEffect } from "react"
+import { trackEvent } from "@/lib/analytics"
+
+export function LandingAnalytics() {
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    trackEvent({
+      event: "landing_visited",
+      referrer: document.referrer || null,
+      utmSource: params.get("utm_source"),
+      utmMedium: params.get("utm_medium"),
+    })
+  }, [])
+
+  return null // Analytics-only component, no UI
+}
+```
+
+- [ ] **Step 2: Create placeholder landing page with analytics**
 
 Replace `src/app/page.tsx`:
 ```typescript
 import { Header } from "@/components/layout/Header"
 import { Footer } from "@/components/layout/Footer"
+import { LandingAnalytics } from "@/components/analytics/LandingAnalytics"
 
 export default function Home() {
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
+      <LandingAnalytics />
       <main className="flex-1 flex items-center justify-center">
         <div className="text-center space-y-[var(--space-lg)]">
           <h1 className="font-display text-[4rem] font-extralight tracking-[0.15em] text-foreground">
@@ -1548,6 +1576,8 @@ After completing all tasks, verify:
 - [ ] Convex dashboard shows schema deployed (reports + reportMetadata tables)
 - [ ] `.env.local` has all required values (Convex, Redis, PostHog, YouTube)
 - [ ] No TypeScript errors: `pnpm tsc --noEmit`
+- [ ] `landing_visited` event fires on page load (verify in PostHog dashboard or browser network tab)
+- [ ] ADD compliance: every page in Plan 1 has at least one analytics event
 
 ---
 
