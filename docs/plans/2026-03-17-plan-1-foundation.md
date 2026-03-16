@@ -11,6 +11,14 @@
 **Spec:** `docs/specs/2026-03-16-hikaku-v1-design.md`
 **ADRs:** `docs/adrs/001` through `013`
 
+**Core Principles (non-negotiable):**
+- **KISS**: Simplest solution that works. No premature abstractions.
+- **YAGNI**: Build only what this plan requires. Nothing speculative.
+- **SOLID**: One responsibility per file. Components accept only the props they use.
+- **DRY**: Shared schemas and utilities, but don't extract until 3+ uses.
+- **TDD**: Red → Green → Refactor for every feature.
+- **ADD**: Every page ships with analytics events.
+
 ---
 
 ## File Map

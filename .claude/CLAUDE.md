@@ -167,6 +167,51 @@ Convex (source of truth)            Redis (hot cache + ephemeral)
 11. Content Freshness (last 30d vs all time)
 12. Head-to-Head Verdict (multi-dimension scorecard)
 
+## Core Engineering Principles
+
+These are non-negotiable. Every PR, every feature, every refactor must comply.
+
+### KISS (Keep It Simple, Stupid)
+
+- Prefer the simplest solution that works. If you're debating between two approaches, pick the one with fewer moving parts.
+- No abstraction layers unless there are 3+ concrete uses. Three similar lines > premature abstraction.
+- No "framework within a framework" — don't build internal routing, state machines, or plugin systems unless the spec explicitly calls for it.
+- If a component does one thing and the code is 30 lines, don't split it into 3 files.
+
+### YAGNI (You Aren't Gonna Need It)
+
+- Build ONLY what the current task requires. No "while I'm here" additions.
+- No config options for hypothetical future use cases. Hardcode now, extract later when the second use case appears.
+- No error handling for impossible states. Trust TypeScript types and Convex validators.
+- No backwards-compatibility shims, feature flags, or adapter patterns unless explicitly requested.
+- If the spec doesn't mention it, don't build it.
+
+### SOLID
+
+- **Single Responsibility**: Each file/function/component has ONE reason to change. A YouTube API client doesn't compute metrics. A chart component doesn't fetch data.
+- **Open/Closed**: Report sections are independent components that share a common interface (`data` prop + `isLoading` state). New sections don't modify existing ones.
+- **Liskov Substitution**: Channel color assignments work for 2, 3, or 4 channels without special-casing.
+- **Interface Segregation**: Components accept only the props they use. Don't pass the entire `ComputedReport` when a section only needs `EngagementData`.
+- **Dependency Inversion**: Components depend on typed interfaces, not concrete implementations. The analytics wrapper (`trackEvent`) abstracts PostHog — swapping providers changes one file.
+
+### DRY (Don't Repeat Yourself)
+
+- Shared validation schemas (`lib/validations.ts`) — one Zod schema used by both client form and server API route.
+- Shared analytics wrapper (`lib/analytics.ts`) — one typed function for all event tracking.
+- Design tokens in CSS variables — colors defined once, used everywhere via `var()` or Tailwind.
+- BUT: Don't DRY prematurely. Two similar blocks of code are fine. Three = extract.
+
+### How to Apply in Practice
+
+| Situation | WRONG | RIGHT |
+|-----------|-------|-------|
+| New report section | Build a generic "SectionFactory" that auto-generates components | Build the specific component, following the same props pattern as others |
+| Error handling | Try-catch every function with custom error classes | Let errors bubble, handle at API route boundary with Zod |
+| Chart theming | Create a ChartThemeProvider with context | Pass theme colors as props from the design tokens |
+| Adding a feature not in spec | "This would be useful..." | Check the spec. Not there? Don't build it. |
+| Two components share 10 lines | Extract a shared utility | Keep them separate until a third component needs it too |
+| Type for API response | `type ApiResponse<T> = { data: T, error?: string, meta?: Record<string, unknown> }` | `type CompareResponse = { reportId: string, data: ComputedReport }` — specific, not generic |
+
 ## Development Approach
 
 ### AI-First
@@ -176,6 +221,7 @@ This project is designed for AI-assisted development:
 - ADRs document every architectural decision with rationale
 - Components are self-documenting with clear interfaces
 - shadcn/ui chosen specifically for AI ecosystem compatibility
+- Convex chosen for AI development velocity (fewer files per feature)
 
 ### TDD (Test-Driven Development)
 
