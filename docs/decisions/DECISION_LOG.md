@@ -8,7 +8,7 @@ All architectural and product decisions with rationale. Each major decision has 
 |---|----------|--------|-----|------|
 | 1 | Project Name | Hikaku (比較) — "Comparison" in Japanese | — | 2026-03-16 |
 | 2 | Tech Stack | Next.js App Router + Vercel | [ADR-001](../adrs/001-tech-stack-nextjs-vercel.md) | 2026-03-16 |
-| 3 | Database | Upstash Redis (24h TTL) | [ADR-002](../adrs/002-database-upstash-redis.md) | 2026-03-16 |
+| 3 | Cache Layer | Upstash Redis (24h TTL report cache) | [ADR-002](../adrs/002-database-upstash-redis.md) | 2026-03-16 |
 | 4 | Design System | Kintsugi Dark + Washi Gold V2 Light (Wabi-sabi) | [ADR-003](../adrs/003-design-system-kintsugi-wabi-sabi.md) | 2026-03-16 |
 | 5 | Data Architecture | Raw + Computed storage in Redis | [ADR-004](../adrs/004-data-architecture-raw-plus-computed.md) | 2026-03-16 |
 | 6 | API Key Strategy | Hybrid (fallback to ours, user can provide) | [ADR-005](../adrs/005-api-key-strategy-hybrid.md) | 2026-03-16 |
@@ -24,6 +24,12 @@ All architectural and product decisions with rationale. Each major decision has 
 | 16 | Rate Limiting | Per-IP on API routes | — | 2026-03-16 |
 | 17 | Max Channels | 2-4 (configurable) | — | 2026-03-16 |
 | 18 | Dev Approach | AI-first, TDD, full documentation | — | 2026-03-16 |
+| 19 | Image Service | V1: None (use @vercel/og + next/image). V2: Evaluate ImageKit (recommended, not decided) | [ADR-010](../adrs/010-image-service-evaluation.md) | 2026-03-17 |
+| 20 | Persistent Backend | Convex (AI-first: fewer files per feature, end-to-end TypeScript, auto-typed) | [ADR-011](../adrs/011-backend-convex-ai-first.md) | 2026-03-17 |
+| 21 | Analytics | PostHog (product) + Vercel Analytics (web vitals). ADD approach: every feature ships with instrumentation | [ADR-012](../adrs/012-analytics-driven-development.md) | 2026-03-17 |
+| 22 | Shareable Link Expiry | 6 hours (not 24h — shorter is enough for social sharing cycle) | [ADR-006](../adrs/006-sharing-and-expiry-model.md) | 2026-03-17 |
+| 23 | Anonymous Data Lifecycle | Raw data purged at 72h. Only metadata (channels, timestamp) kept permanently for analytics | [ADR-011](../adrs/011-backend-convex-ai-first.md) | 2026-03-17 |
+| 24 | Data Split | Convex = source of truth (raw + computed + permanent). Redis = hot cache + ephemeral only | [ADR-002](../adrs/002-database-upstash-redis.md), [ADR-011](../adrs/011-backend-convex-ai-first.md) | 2026-03-17 |
 
 ## Rejected Alternatives
 
@@ -33,8 +39,12 @@ All architectural and product decisions with rationale. Each major decision has 
 | Framework | Astro + Islands | Island hydration complexity for interactive app | Next.js (Astro as future V2 for /r/ pages) |
 | Hosting | Fly.io | Cold starts, manual Redis setup, Docker config | Vercel |
 | Hosting | Railway | More friction without meaningful benefit | Vercel |
-| Database | Supabase | Overkill for key-value, no native TTL | Upstash Redis |
-| Database | Turso | No native TTL, manual cleanup needed | Upstash Redis |
+| Persistent Backend | Supabase | More boilerplate per feature (5-7 files vs 3), SQL↔TypeScript translation layers hurt AI velocity | Convex |
+| Persistent Backend | Convex (rejected then accepted) | Initially rejected for lock-in; accepted after AI-first analysis showed 2-3x fewer files per feature | Convex |
+| Cache | Supabase | No native TTL, overkill for ephemeral cache | Upstash Redis |
+| Cache | Turso | No native TTL, manual cleanup needed | Upstash Redis |
+| Image Service (V1) | Cloudinary | Not needed — @vercel/og + next/image covers all V1 use cases at $0 | No service |
+| Image Service (V1) | ImageKit | Not needed for V1, recommended for V2 evaluation | Deferred |
 | Components | Tailwind + Radix (no shadcn) | Loses AI ecosystem advantage | shadcn/ui |
 | Dark Theme | Stone Garden | Too stark for data-heavy pages | Kintsugi |
 | Light Theme | Paper & Ink | No shared DNA with Kintsugi dark (brown ≠ gold) | Washi Gold V2 |

@@ -10,17 +10,19 @@ Hikaku is a YouTube channel comparison platform that lets users compare up to 4 
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| Framework | Next.js 15 (App Router, React 19) |
-| Styling | Tailwind CSS v4 + shadcn/ui (Kintsugi-themed) |
-| Charts | Recharts |
-| Database | Upstash Redis (24h TTL reports) |
-| Hosting | Vercel |
-| Fonts | Zen Kaku Gothic New (body) + Crimson Pro (display/kanji) |
-| PDF | html2canvas + jsPDF (client-side) |
-| OG Images | @vercel/og |
-| Analytics | Vercel Analytics |
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| Framework | Next.js 15 (App Router, React 19) | SSR, routing, API routes |
+| Styling | Tailwind CSS v4 + shadcn/ui (Kintsugi-themed) | Design system, components |
+| Charts | Recharts | Data visualization |
+| Persistent Backend | Convex | Users, auth, history, AI personalization, vector search |
+| Cache | Upstash Redis | Report cache (24h TTL), rate limiting |
+| Hosting | Vercel | Edge hosting, serverless |
+| Fonts | Zen Kaku Gothic New (body) + Crimson Pro (display/kanji) | Typography |
+| PDF | html2canvas + jsPDF (client-side) | Report export |
+| OG Images | @vercel/og | Dynamic social preview cards |
+| Analytics | Vercel Analytics | Usage tracking |
+| Images (V1) | next/image + @vercel/og | No external service needed |
 
 ## Design System — Kintsugi (金継ぎ)
 
@@ -77,10 +79,17 @@ src/
 │   └── api/                # Server-side API routes
 │       ├── compare/        # YouTube API proxy + compute
 │       └── report/         # Create/fetch cached reports
+├── convex/                 # Convex backend (persistent layer)
+│   ├── schema.ts           # Data schema (TypeScript)
+│   ├── reports.ts          # Report mutations/queries
+│   ├── users.ts            # User queries
+│   ├── history.ts          # Search history
+│   └── crons.ts            # Scheduled jobs (72h purge, 6h link expiry)
 ├── lib/
 │   ├── youtube/            # YouTube API client + metrics engine
-│   ├── redis.ts            # Upstash client
-│   └── report.ts           # Report generation logic
+│   ├── redis.ts            # Upstash client (hot cache + rate limiting)
+│   ├── analytics.ts        # Typed PostHog wrapper (ADD)
+│   └── report.ts           # Report orchestration logic
 ├── components/
 │   ├── ui/                 # shadcn/ui components (Kintsugi-themed)
 │   ├── charts/             # Recharts wrappers
@@ -97,11 +106,46 @@ src/
 User enters 2-4 @handles → POST /api/compare
 → Server fetches YouTube Data API v3 (channels → playlists → videos)
 → Computes all metrics (engagement, categories, distribution, patterns)
-→ Stores raw + computed data in Upstash Redis (24h TTL)
+→ Stores raw + computed in Convex (source of truth)
+→ Caches computed metrics in Redis (hot cache, 4h TTL)
+→ If logged in: saves to user's search history in Convex
 → Returns { reportId, data }
 → Client renders with phased section reveal
 → Share button → hikaku.app/r/{reportId}
-→ After 24h → expired page with re-generate CTA
+→ After 6h → shareable link expires (Convex scheduled job flips public flag)
+→ Expired page with re-generate CTA
+```
+
+### Data Lifecycle
+
+```
+Anonymous user:
+  Raw + computed → Convex (temporary, 72h purge via scheduled job)
+  Metadata only → Convex (permanent, for analytics: channels, timestamp)
+  Hot cache → Redis (4h TTL)
+
+Logged-in user (unsaved report):
+  Same as anonymous — 72h purge
+
+Logged-in user (saved report):
+  Raw + computed → Convex (permanent, enables AI re-analysis)
+  Hot cache → Redis (4h TTL)
+```
+
+### Data Layer Split
+
+```
+Convex (source of truth)            Redis (hot cache + ephemeral)
+├── Report raw data                  ├── Hot computed metrics (4h TTL)
+├── Report computed metrics          ├── Rate limit counters (minutes)
+├── Report metadata (permanent)      ├── In-progress comparison state
+├── User accounts (Clerk auth)       └── Session tokens
+├── Search history
+├── Saved report references
+├── AI personalization prefs
+├── Custom report configs
+├── Vector embeddings
+└── Usage analytics
 ```
 
 ## Report Sections (in order)
@@ -135,6 +179,18 @@ All features follow Red → Green → Refactor:
 1. Write failing test first
 2. Write minimum code to pass
 3. Refactor while keeping tests green
+
+### ADD (Analytics-Driven Development)
+
+Analytics is a core discipline, not an afterthought. Every feature ships with instrumentation:
+1. Define the metric before building the feature
+2. Instrument events alongside the code
+3. Verify data flows after shipping
+4. Every PR includes: Code + Tests (TDD) + Analytics events (ADD)
+
+**Tools**: PostHog (product analytics, 1M events/mo free) + Vercel Analytics (Web Vitals)
+**Event schema**: Typed in `lib/analytics.ts` — never call posthog.capture directly
+**Naming**: `{noun}_{verb_past_tense}` (e.g., `report_shared`, `comparison_completed`)
 
 ### Documentation
 

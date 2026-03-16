@@ -1,6 +1,6 @@
 # ADR-006: Report Sharing & Expiry Model
 
-**Status**: Accepted
+**Status**: Accepted (updated 2026-03-17 — expiry changed from 24h to 6h)
 **Date**: 2026-03-16
 **Deciders**: Purujit Negi, Claude (AI pair)
 
@@ -17,7 +17,7 @@ Shareable report URLs are Hikaku's primary growth mechanism. Every shared link i
 - PDF download button for permanent offline copies
 
 ### Expiry
-- Reports cached in Upstash Redis with 24-hour TTL
+- Reports shareable link expires after 6 hours (Convex scheduled job flips public flag)
 - After expiry, the URL redirects to an expired page
 - Channel handles preserved in URL params: `/r/{id}?ch=@channelA,@channelB`
 
@@ -38,7 +38,7 @@ User creates comparison
             → Cycle repeats
 ```
 
-The 24-hour expiry creates urgency ("check this before it expires") while every expired link becomes a conversion opportunity rather than a dead end.
+The 6-hour expiry creates urgency ("check this before it expires") while every expired link becomes a conversion opportunity rather than a dead end. 6 hours is sufficient for a social media sharing cycle (post → engagement peak → decay) without unnecessary storage.
 
 ## Inspiration
 
@@ -49,7 +49,8 @@ The 24-hour expiry creates urgency ("check this before it expires") while every 
 ## Consequences
 
 - Every shared link markets the product
-- 24h window is sufficient for social media virality cycle
+- 6h window covers the social media engagement peak (post → shares → decay)
+- Anonymous report data purged from Convex at 72h (metadata kept permanently for analytics)
 - Zero long-term storage burden
 - Natural freemium gate for future monetization
 - PDF download satisfies users who want permanent copies

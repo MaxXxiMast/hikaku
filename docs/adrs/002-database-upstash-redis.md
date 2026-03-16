@@ -1,8 +1,9 @@
-# ADR-002: Database — Upstash Redis
+# ADR-002: Cache Layer — Upstash Redis
 
-**Status**: Accepted
+**Status**: Accepted (updated 2026-03-17 — scoped to cache layer only)
 **Date**: 2026-03-16
 **Deciders**: Purujit Negi, Claude (AI pair)
+**Related**: [ADR-011](011-backend-convex-ai-first.md) — Convex as persistent backend
 
 ## Context
 
