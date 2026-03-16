@@ -1,9 +1,9 @@
 # Hikaku V1 — Product Design Specification
 
-**Status**: Draft
+**Status**: Draft (revised 2026-03-17 — Convex backend, analytics, 6h expiry, data lifecycle)
 **Date**: 2026-03-16
 **Author**: Purujit Negi + Claude (AI pair)
-**ADRs**: [001](../adrs/001-tech-stack-nextjs-vercel.md) through [009](../adrs/009-responsive-mobile-first.md)
+**ADRs**: [001](../adrs/001-tech-stack-nextjs-vercel.md) through [012](../adrs/012-analytics-driven-development.md)
 
 ---
 
@@ -32,18 +32,20 @@ Built from a real analysis comparing Wint Wealth (@WintWealthYT, 729K subs) vs F
 
 ## 2. Tech Stack
 
-| Layer | Choice | ADR |
-|-------|--------|-----|
-| Framework | Next.js 15 (App Router, React 19, Server Components) | [ADR-001](../adrs/001-tech-stack-nextjs-vercel.md) |
-| Styling | Tailwind CSS v4 + shadcn/ui | [ADR-007](../adrs/007-component-library-shadcn.md) |
-| Charts | Recharts | — |
-| Database | Upstash Redis | [ADR-002](../adrs/002-database-upstash-redis.md) |
-| Hosting | Vercel | [ADR-001](../adrs/001-tech-stack-nextjs-vercel.md) |
-| Display Font | Crimson Pro (Google Fonts, SIL OFL) | [ADR-003](../adrs/003-design-system-kintsugi-wabi-sabi.md) |
-| Body Font | Zen Kaku Gothic New (Google Fonts, SIL OFL) | [ADR-003](../adrs/003-design-system-kintsugi-wabi-sabi.md) |
-| PDF Export | html2canvas + jsPDF (client-side) | — |
-| OG Images | @vercel/og | — |
-| Analytics | Vercel Analytics (free tier) | — |
+| Layer | Choice | Purpose | ADR |
+|-------|--------|---------|-----|
+| Framework | Next.js 15 (App Router, React 19) | SSR, routing, API routes | [ADR-001](../adrs/001-tech-stack-nextjs-vercel.md) |
+| Styling | Tailwind CSS v4 + shadcn/ui | Design system, components | [ADR-007](../adrs/007-component-library-shadcn.md) |
+| Charts | Recharts | Data visualization | — |
+| Persistent Backend | Convex | Users, auth, reports, AI personalization, vector search | [ADR-011](../adrs/011-backend-convex-ai-first.md) |
+| Cache Layer | Upstash Redis | Hot cache (4h TTL), rate limiting, ephemeral state | [ADR-002](../adrs/002-database-upstash-redis.md) |
+| Hosting | Vercel | Edge hosting, serverless | [ADR-001](../adrs/001-tech-stack-nextjs-vercel.md) |
+| Display Font | Crimson Pro (Google Fonts, SIL OFL) | Kanji logotype, section headings | [ADR-003](../adrs/003-design-system-kintsugi-wabi-sabi.md) |
+| Body Font | Zen Kaku Gothic New (Google Fonts, SIL OFL) | UI, data, tables, labels | [ADR-003](../adrs/003-design-system-kintsugi-wabi-sabi.md) |
+| PDF Export | html2canvas + jsPDF (client-side) | Report download | — |
+| OG Images | @vercel/og + next/image | Social previews, thumbnails | [ADR-010](../adrs/010-image-service-evaluation.md) |
+| Product Analytics | PostHog | Events, funnels, session replays | [ADR-012](../adrs/012-analytics-driven-development.md) |
+| Web Vitals | Vercel Analytics | Performance monitoring | — |
 
 ---
 
@@ -197,23 +199,25 @@ Beauty in imperfection, transience, simplicity. Applied to UI:
 
 ### 4.3 Report Page — `/r/[id]`
 
-**Purpose**: Shareable cached report. Same layout as /compare but reads from Redis.
+**Purpose**: Shareable report. Same layout as /compare but reads from Convex.
 
 **Server-Side**:
-- `generateMetadata()` reads Redis for OG tags
+- `generateMetadata()` reads Convex for OG tags
 - Title: "Hikaku — @channelA vs @channelB"
 - Description: auto-generated executive summary
 - OG image: dynamic social card via @vercel/og
 
 **Behavior**:
-- If report exists in Redis: render full report (SSR)
-- If report expired: redirect to `/r/[id]/expired?ch=@a,@b`
+- If report exists and is public (within 6h): render full report (SSR, hot cache from Redis)
+- If report link expired (>6h): redirect to `/r/[id]/expired?ch=@a,@b`
 - If report ID invalid: 404 page
+- If logged-in user's saved report: always accessible regardless of expiry
 
 **Elements**:
 - Same as /compare but with "Report generated X hours ago" timestamp
-- "Expires in Y hours" indicator (gold, counts down)
+- "Expires in Y hours" indicator (gold, counts down) — only for public shared links
 - Share + Download buttons
+- "Save to account" button (if logged in, report not yet saved)
 
 ### 4.4 Expired Report — `/r/[id]/expired`
 
@@ -320,13 +324,17 @@ Each section is an independent React component that receives computed data as pr
 ```
 
 **Process**:
-1. Validate input (2-4 handles, rate limit check)
+1. Validate input (2-4 handles, rate limit check via Redis)
 2. Resolve handles to channel IDs (YouTube search API)
 3. Fetch channel stats (YouTube channels API)
 4. Fetch all videos via uploads playlist (YouTube playlistItems + videos APIs)
 5. Compute all metrics (engagement, categories, distribution, patterns, etc.)
-6. Store raw + computed data in Upstash Redis (24h TTL)
-7. Return report ID + computed data
+6. Store raw + computed data in Convex (source of truth)
+7. Cache computed metrics in Redis (hot cache, 4h TTL)
+8. Set report as public with 6h expiry (Convex scheduled job)
+9. If logged in: save to user's search history in Convex
+10. Track `comparison_completed` event (PostHog)
+11. Return report ID + computed data
 
 **Output**:
 ```typescript
@@ -361,9 +369,11 @@ data: { reportId: "abc123" }
 **Input**: Report ID from URL param.
 
 **Process**:
-1. Fetch from Upstash Redis: `report:{id}`
-2. If exists: return full data
-3. If expired/missing: return 404 with channel handles (from URL params)
+1. Check Redis hot cache first (fast path)
+2. If cache miss: fetch from Convex (source of truth)
+3. If report exists and is public (or user owns it): return data, refresh Redis cache
+4. If report link expired: return 404 with channel handles (from URL params or Convex metadata)
+5. Track `report_viewed` event (PostHog)
 
 **Output**:
 ```typescript
@@ -378,7 +388,7 @@ data: { reportId: "abc123" }
 
 ## 7. Data Types
 
-### 7.1 Raw Video Data (stored in Redis)
+### 7.1 Raw Video Data (stored in Convex)
 
 ```typescript
 interface RawVideo {
@@ -393,7 +403,7 @@ interface RawVideo {
 }
 ```
 
-### 7.2 Raw Channel Data (stored in Redis)
+### 7.2 Raw Channel Data (stored in Convex)
 
 ```typescript
 interface RawChannel {
@@ -408,13 +418,12 @@ interface RawChannel {
 }
 ```
 
-### 7.3 Computed Report (stored in Redis)
+### 7.3 Computed Report (stored in Convex + cached in Redis)
 
 ```typescript
 interface ComputedReport {
   meta: {
     generatedAt: string
-    expiresAt: string
     channelHandles: string[]
   }
   overview: ChannelOverviewData[]
@@ -432,18 +441,62 @@ interface ComputedReport {
 }
 ```
 
-### 7.4 Stored Report (full Redis record)
+### 7.4 Convex Report Document (source of truth)
 
 ```typescript
-interface StoredReport {
-  meta: ReportMeta
-  raw: {
-    channels: RawChannel[]
-    videos: RawVideo[]
-  }
-  computed: ComputedReport
-}
+// convex/schema.ts
+reports: defineTable({
+  // Metadata
+  channelHandles: v.array(v.string()),
+  generatedAt: v.number(),
+  generatedBy: v.optional(v.id("users")),  // null for anonymous
+
+  // Visibility
+  isPublic: v.boolean(),        // true for 6h after creation
+  publicExpiresAt: v.number(),  // timestamp when public link expires
+
+  // Lifecycle
+  savedBy: v.optional(v.id("users")),  // if a logged-in user saved it
+  purgeAfter: v.optional(v.number()),  // 72h for unsaved, null for saved
+
+  // Data
+  raw: v.object({
+    channels: v.array(v.any()),
+    videos: v.array(v.any()),
+  }),
+  computed: v.any(),  // ComputedReport
+})
+  .index("by_public", ["isPublic", "publicExpiresAt"])
+  .index("by_user", ["savedBy"])
+  .index("by_purge", ["purgeAfter"])
 ```
+
+### 7.5 Data Lifecycle
+
+```
+Anonymous user:
+  Report created → isPublic: true, publicExpiresAt: now + 6h, purgeAfter: now + 72h
+  → 6h: Convex cron flips isPublic to false (link expires)
+  → 72h: Convex cron deletes raw + computed data (metadata kept for analytics)
+
+Logged-in user (unsaved):
+  Same as anonymous
+
+Logged-in user (saved):
+  Report created → isPublic: true, publicExpiresAt: now + 6h, savedBy: userId, purgeAfter: null
+  → 6h: Public link expires, but user can still access from dashboard
+  → Data persists permanently (enables AI re-analysis, history)
+  → User can delete from dashboard
+```
+
+### 7.6 Redis Cache Structure (hot cache only)
+
+```
+report:{id}:computed → ComputedReport JSON (4h TTL)
+ratelimit:{ip} → counter (1h TTL)
+```
+
+Redis stores ONLY computed metrics for fast reads on popular reports. Source of truth is always Convex.
 
 ---
 
@@ -532,7 +585,7 @@ const LOADING_CONTENT = {
   ],
   hikakuHints: [
     "You can compare up to 4 channels at once",
-    "Reports are shareable for 24 hours via unique links",
+    "Reports are shareable for 6 hours via unique links",
     "Download your report as PDF for permanent access",
     "Provide your own YouTube API key for unlimited comparisons",
   ],
@@ -605,7 +658,8 @@ Client-side generation:
 | Network failure | Retry button with message: "Connection lost. Click to retry." |
 | Channel with 0 videos | Exclude from comparison with note |
 | Rate limited | "Too many requests. Please wait {n} minutes." |
-| Redis unavailable | Fall back to non-cached mode (no shareable link, still shows comparison) |
+| Redis unavailable | Serve directly from Convex (slower but functional, Redis is just a cache) |
+| Convex unavailable | Show error: "Our servers are temporarily unavailable. Please try again." |
 
 ---
 
@@ -648,11 +702,13 @@ Client-side generation:
 | Concern | Mitigation |
 |---------|-----------|
 | API key exposure | Server-side proxy only. Keys never reach client. |
-| Rate limiting | Per-IP, 10 req/hour on /api/compare |
+| Rate limiting | Per-IP via Redis, 10 req/hour on /api/compare |
 | Input validation | Sanitize channel handles. Reject non-alphanumeric (except @, _, -). |
-| Redis injection | Use parameterized keys (report:${nanoid}). No user input in key paths. |
+| Convex access | Convex functions enforce auth checks. Public queries expose only public reports. |
+| Redis injection | Parameterized keys (report:{nanoid}). No user input in key construction. |
 | XSS | React default escaping. No raw HTML injection. All content rendered via React components. |
 | CORS | API routes restricted to same-origin. |
+| Data privacy | Anonymous report data purged at 72h. User data deletable on request. |
 
 ---
 
@@ -660,18 +716,19 @@ Client-side generation:
 
 These are explicitly out of scope for V1 but documented for future planning:
 
-| Feature | Trigger | Complexity |
-|---------|---------|------------|
-| User accounts / auth | When re-gen paywall is needed | Medium |
-| Payment / billing | When freemium gate activated | Medium |
-| AI-generated insights | When raw data + LLM integration ready | High |
-| Custom report sections | When AI customization feature built | High |
-| Historical tracking | When users want to track channels over time | High (needs persistent DB) |
-| Astro extraction for /r/ pages | When report pages are highest traffic | Medium |
-| ML-based category classification | When non-finance channels are common | High |
-| LLM-generated executive summaries | When template summaries feel limiting | Medium |
-| Multi-language support | When international users grow | Medium |
-| Embed widget | When blogs/sites want to embed comparisons | Low |
+| Feature | Trigger | Complexity | Notes |
+|---------|---------|------------|-------|
+| User accounts / auth (V1.5) | Post-launch, when save/history features ready | Medium | Convex + Clerk already in architecture |
+| Payment / billing | When freemium gate activated | Medium | Stripe + Convex |
+| AI-generated insights | When raw data + LLM integration ready | High | Raw data in Convex enables this |
+| Custom report sections | When AI customization feature built | High | User prefs in Convex, raw data available |
+| Historical tracking | When users want to track channels over time | Medium | Convex already stores report history for saved reports |
+| Astro extraction for /r/ pages | When report pages are highest traffic | Medium | Read-only pages, can share Convex/Redis |
+| ML-based category classification | When non-finance channels are common | High | Replace keyword classifier |
+| LLM-generated executive summaries | When template summaries feel limiting | Medium | Raw data in Convex feeds LLM |
+| Image service (ImageKit or alt) | When next/image limits hit or user uploads needed | Low | Evaluate at that time, see ADR-010 |
+| Multi-language support | When international users grow | Medium | — |
+| Embed widget | When blogs/sites want to embed comparisons | Low | — |
 
 ---
 
@@ -680,10 +737,12 @@ These are explicitly out of scope for V1 but documented for future planning:
 ### 16.1 AI-First
 
 - CLAUDE.md provides full context for every session
-- ADRs document every architectural decision
+- ADRs document every architectural decision with rationale
 - This spec is the single source of truth for product requirements
-- shadcn/ui chosen for AI ecosystem compatibility
+- shadcn/ui chosen for AI ecosystem compatibility (MCP servers, training data)
+- Convex chosen for AI development velocity (fewer files per feature, end-to-end TypeScript)
 - All components designed with clear interfaces for AI-generated code
+- Goal: reach near no-code feature implementation through AI agents
 
 ### 16.2 TDD (Test-Driven Development)
 
@@ -695,10 +754,28 @@ Every feature follows:
 Test categories:
 - **Unit**: Metric computations, data transformations, utility functions
 - **Component**: Report section rendering, loading states, responsive layouts
-- **Integration**: API routes, Redis operations, YouTube API mocking
+- **Integration**: API routes, Convex functions, Redis operations, YouTube API mocking
 - **E2E**: Full comparison flow (Playwright)
 
-### 16.3 Git Workflow
+### 16.3 ADD (Analytics-Driven Development)
+
+Every feature ships with analytics instrumentation. Full details in [ADR-012](../adrs/012-analytics-driven-development.md).
+
+1. **Define**: What metric proves this feature works?
+2. **Instrument**: Add typed PostHog events alongside the code
+3. **Ship**: Deploy feature + analytics together
+4. **Verify**: Confirm data flows in PostHog dashboard
+
+Every PR includes: **Code + Tests (TDD) + Analytics events (ADD)**
+
+Key funnels:
+- Core: landing → compare → report → share
+- Viral: share → opened → new comparison
+- Conversion: view → signup → save
+- Loading: started → (by stage) → abandoned/completed
+- Expiry: expired viewed → regenerated
+
+### 16.4 Git Workflow
 
 - Branch naming: `feature/`, `fix/`, `docs/`, `refactor/`, `test/`
 - Conventional commits: `feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`
@@ -714,19 +791,25 @@ hikaku/
 ├── .claude/
 │   └── CLAUDE.md                # AI project instructions
 ├── docs/
-│   ├── adrs/                    # Architecture Decision Records
+│   ├── adrs/                    # Architecture Decision Records (001-012)
 │   ├── brainstorm/              # Session capture notes
 │   ├── decisions/               # Decision log
 │   └── specs/                   # Product specifications (this file)
+├── convex/                      # Convex backend (persistent layer)
+│   ├── schema.ts                # Data schema (TypeScript, source of truth)
+│   ├── reports.ts               # Report queries/mutations
+│   ├── users.ts                 # User queries
+│   ├── history.ts               # Search history mutations/queries
+│   └── crons.ts                 # Scheduled jobs (6h link expiry, 72h data purge)
 ├── src/
 │   ├── app/
-│   │   ├── layout.tsx           # Root layout, theme provider, fonts
+│   │   ├── layout.tsx           # Root layout, theme provider, fonts, ConvexProvider
 │   │   ├── page.tsx             # Landing page
 │   │   ├── compare/
 │   │   │   └── page.tsx         # Live comparison view
 │   │   ├── r/
 │   │   │   ├── [id]/
-│   │   │   │   ├── page.tsx     # Cached report view
+│   │   │   │   ├── page.tsx     # Report view (SSR from Convex/Redis)
 │   │   │   │   ├── opengraph-image.tsx  # Dynamic OG image
 │   │   │   │   └── expired/
 │   │   │   │       └── page.tsx # Expired report + re-gen CTA
@@ -735,7 +818,7 @@ hikaku/
 │   │       │   └── route.ts     # YouTube API proxy + compute + SSE
 │   │       └── report/
 │   │           └── [id]/
-│   │               └── route.ts # Fetch cached report
+│   │               └── route.ts # Fetch report (Redis cache → Convex fallback)
 │   ├── lib/
 │   │   ├── youtube/
 │   │   │   ├── client.ts        # YouTube Data API v3 client
@@ -747,9 +830,10 @@ hikaku/
 │   │   │   ├── titles.ts        # Title and SEO analysis
 │   │   │   ├── summary.ts       # Executive summary generation
 │   │   │   └── types.ts         # All YouTube/metric types
-│   │   ├── redis.ts             # Upstash client + report operations
-│   │   ├── report.ts            # Report orchestration (fetch, compute, store)
-│   │   ├── rate-limit.ts        # Per-IP rate limiting
+│   │   ├── redis.ts             # Upstash client (hot cache + rate limiting only)
+│   │   ├── analytics.ts         # Typed PostHog wrapper (ADD)
+│   │   ├── report.ts            # Report orchestration (fetch → compute → store)
+│   │   ├── rate-limit.ts        # Per-IP rate limiting via Redis
 │   │   └── utils.ts             # Shared utilities (formatNumber, etc.)
 │   ├── components/
 │   │   ├── ui/                  # shadcn/ui components (Kintsugi-themed)
@@ -798,6 +882,62 @@ hikaku/
 ├── package.json
 └── README.md
 ```
+
+---
+
+## 18. Analytics Integration
+
+Full details in [ADR-012](../adrs/012-analytics-driven-development.md).
+
+### 18.1 Tools
+
+| Tool | Purpose | Free Tier |
+|------|---------|-----------|
+| PostHog | Product analytics: events, funnels, session replays, feature flags | 1M events/mo |
+| Vercel Analytics | Web Vitals: LCP, CLS, FID, performance | Included with Vercel |
+
+### 18.2 Key Events
+
+| Event | Trigger | Properties |
+|-------|---------|-----------|
+| comparison_started | User clicks Compare | channels, channelCount |
+| comparison_completed | Report fully rendered | reportId, durationMs, channelCount |
+| comparison_failed | API error | error, channels |
+| report_viewed | Report page loaded | reportId, source |
+| report_section_visible | Section scrolls into viewport | reportId, section |
+| report_shared | Share button clicked | reportId, method |
+| shared_link_opened | Someone opens a shared link | reportId, referrer |
+| report_expired_viewed | Expired page loaded | reportId, channels |
+| report_regenerated | Re-generate clicked on expired page | reportId, channels |
+| pdf_downloaded | PDF download button clicked | reportId, channelCount |
+| loading_started | Comparison fetch begins | channelCount |
+| loading_abandoned | User leaves during loading | durationMs, lastStage |
+| loading_completed | All sections rendered | durationMs |
+| signup_started | Auth flow initiated | source |
+| signup_completed | User account created | method |
+| report_saved | Logged-in user saves report | reportId |
+| api_key_provided | User enters own API key | source |
+
+### 18.3 Key Funnels
+
+1. **Core**: landing → comparison_started → comparison_completed → report_shared
+2. **Viral**: report_shared → shared_link_opened → comparison_started (new user)
+3. **Conversion**: report_viewed → signup_started → signup_completed → report_saved
+4. **Loading**: loading_started → loading_abandoned/completed (by stage)
+5. **Expiry**: report_expired_viewed → report_regenerated
+
+### 18.4 Dashboard Metrics (Weekly Review)
+
+| Metric | Formula |
+|--------|---------|
+| Daily Active Comparisons | count(comparison_completed) / day |
+| Viral Coefficient | shared_link_opened / comparison_completed |
+| Loading Drop-off Rate | loading_abandoned / loading_started |
+| Share Rate | report_shared / comparison_completed |
+| Median Loading Time | p50(loading_completed.durationMs) |
+| Report Scroll Depth | avg(report_scrolled.depthPercent) |
+| Top Compared Channels | group by channels, count |
+| Expiry Re-gen Rate | report_regenerated / report_expired_viewed |
 
 ---
 
