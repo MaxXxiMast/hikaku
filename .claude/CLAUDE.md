@@ -268,11 +268,21 @@ Analytics is a core discipline, not an afterthought. Every feature ships with in
 - All API responses typed
 - No `any` — use `unknown` and narrow
 
+### JavaScript / TypeScript Style
+- **Arrow functions everywhere** — no `function` keyword for components, handlers, or utilities. Exception: `export default function` for Next.js page/layout conventions if required.
+- **Functional only** — no classes, no `this`, no `new` (except for library constructors like `new URL()`).
+- **Composable functions** over deep dependency chains. Prefer small, pure functions that can be composed.
+- **Const by default** — `const` for everything, `let` only when reassignment is genuinely needed, never `var`.
+- **Destructuring** — always destructure props, function params, and imports.
+- **Optional chaining + nullish coalescing** — `foo?.bar ?? default` over nested ternaries or if-chains.
+
 ### Components
+- **Presentational + hooks pattern** — components handle rendering, custom hooks handle data/logic. Never fetch data inside a presentational component.
 - Server Components by default
 - `'use client'` only when needed (interactivity, hooks, browser APIs)
 - Props interfaces exported alongside component
 - Composition over inheritance
+- **No prop drilling** — if data needs to pass through 3+ levels, use a hook or context
 
 ### Git Conventions
 - Branch: `feature/`, `fix/`, `docs/`, `refactor/`
