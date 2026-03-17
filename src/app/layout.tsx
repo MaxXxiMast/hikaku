@@ -1,5 +1,7 @@
 import type { Metadata } from "next"
 import { Crimson_Pro, Zen_Kaku_Gothic_New } from "next/font/google"
+import { ThemeProvider } from "@/components/providers/ThemeProvider"
+import { PostHogProvider } from "@/components/providers/PostHogProvider"
 import "./globals.css"
 
 const crimsonPro = Crimson_Pro({
@@ -32,7 +34,9 @@ export default function RootLayout({
       <body
         className={`${crimsonPro.variable} ${zenKaku.variable} font-sans antialiased`}
       >
-        {children}
+        <ThemeProvider>
+          <PostHogProvider>{children}</PostHogProvider>
+        </ThemeProvider>
       </body>
     </html>
   )
