@@ -1,0 +1,81 @@
+@layer base {
+  :root {
+    /* Washi Gold V2 Light */
+    --background: 40 20% 94%;
+    --foreground: 30 14% 10%;
+    --card: 40 33% 98%;
+    --card-foreground: 30 14% 10%;
+    --popover: 40 33% 98%;
+    --popover-foreground: 30 14% 10%;
+    --primary: 42 64% 32%;
+    --primary-foreground: 40 20% 94%;
+    --secondary: 100 27% 33%;
+    --secondary-foreground: 40 20% 94%;
+    --muted: 35 6% 55%;
+    --muted-foreground: 35 6% 55%;
+    --accent: 42 64% 32%;
+    --accent-foreground: 40 20% 94%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 42 64% 32% / 0.15;
+    --input: 42 64% 32% / 0.15;
+    --ring: 42 64% 32%;
+    --radius: 0.25rem;
+
+    /* Hikaku custom tokens */
+    --accent-gold: 42 64% 32%;
+    --accent-sage: 100 27% 33%;
+    --accent-copper: 24 37% 45%;
+    --accent-steel: 215 21% 36%;
+
+    /* Typography scale */
+    --text-display: 2rem;
+    --text-heading: 1.4rem;
+    --text-body: 1rem;
+    --text-data: 0.8rem;
+    --text-label: 0.65rem;
+    --text-micro: 0.55rem;
+
+    /* Spacing */
+    --space-xs: 0.25rem;
+    --space-sm: 0.5rem;
+    --space-md: 1rem;
+    --space-lg: 1.5rem;
+    --space-xl: 2rem;
+    --space-2xl: 3rem;
+  }
+
+  .dark {
+    /* Kintsugi Dark */
+    --background: 60 8% 7%;
+    --foreground: 38 10% 80%;
+    --card: 60 6% 9%;
+    --card-foreground: 38 10% 80%;
+    --popover: 60 6% 9%;
+    --popover-foreground: 38 10% 80%;
+    --primary: 43 55% 56%;
+    --primary-foreground: 60 8% 7%;
+    --secondary: 96 14% 54%;
+    --secondary-foreground: 60 8% 7%;
+    --muted: 36 6% 45%;
+    --muted-foreground: 36 6% 45%;
+    --accent: 43 55% 56%;
+    --accent-foreground: 60 8% 7%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 43 55% 56% / 0.12;
+    --input: 43 55% 56% / 0.12;
+    --ring: 43 55% 56%;
+
+    /* Hikaku custom tokens */
+    --accent-gold: 43 55% 56%;
+    --accent-sage: 96 14% 54%;
+    --accent-copper: 22 33% 52%;
+    --accent-steel: 213 16% 55%;
+  }
+}
+
+@theme {
+  --font-sans: var(--font-zen-kaku), system-ui, sans-serif;
+  --font-display: var(--font-crimson), Georgia, serif;
+}
