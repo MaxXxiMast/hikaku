@@ -34,6 +34,8 @@ All architectural and product decisions with rationale. Each major decision has 
 | 26 | Forms | React Hook Form + Zod (shared client+server validation) | [ADR-013](../adrs/013-frontend-state-and-forms.md) | 2026-03-17 |
 | 27 | Client State | None — component-local + next-themes. No Zustand/Redux (YAGNI) | [ADR-013](../adrs/013-frontend-state-and-forms.md) | 2026-03-17 |
 | 28 | API Middleware | Composable utilities (withValidation, withRateLimit). No framework | [ADR-013](../adrs/013-frontend-state-and-forms.md) | 2026-03-17 |
+| 29 | Raw Data Shape | Fat — store full YouTube API response, not just projected fields. Enables future analysis (FS-1–FS-6). Supersedes ADR-004 field lists. | [ADR-014](../adrs/014-fat-raw-data-storage.md) | 2026-04-05 |
+| 30 | Channel Resolution | forHandle on Channels endpoint (1 quota unit) instead of Search API (100 units). 10x daily capacity. Supersedes ADR-005 quota numbers. | [ADR-015](../adrs/015-channel-resolution-forhandle.md) | 2026-04-05 |
 
 ## Rejected Alternatives
 
