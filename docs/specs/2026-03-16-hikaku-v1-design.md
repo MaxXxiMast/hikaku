@@ -317,7 +317,8 @@ Each section is an independent React component that receives computed data as pr
 
 **Data**: Multi-dimension scorecard — which channel wins each dimension.
 **Display**: Table with dimensions, winner indicator (channel color dot), margin, notes.
-**Dimensions**: Scale, Engagement Quality, Content-Product Fit, Growth Trajectory, Upload Strategy, SEO, Subscriber Efficiency, Duration Strategy, Title Optimization, Posting Optimization, Content Freshness, Brand Building, Viral Potential, Audience Depth.
+**Dimensions** (15 total, matching WW vs FRA report): Scale & Reach, Engagement Quality, Content-Product Fit, Growth Trajectory, Upload Strategy, SEO / Discoverability, Subscriber Efficiency, Duration Strategy, Title Optimization, Posting Optimization, Content Freshness, Brand Building, Viral Potential, Audience Depth, Long-term Defensibility.
+**Scoring**: Threshold-based with ties — if difference between channels is <5%, dimension is a tie (no winner). Each dimension shows: winner indicator, margin (Slight/Moderate/Strong), and explanatory notes.
 **Component**: `<HeadToHeadVerdict />`
 
 ---
@@ -331,14 +332,14 @@ Each section is an independent React component that receives computed data as pr
 {
   channels: string[]       // 2-4 YouTube handles
   apiKey?: string          // Optional user-provided YouTube API key
+  since?: string           // ISO 8601 date — time window for video fetching (default: 4 months ago)
 }
 ```
 
 **Process**:
 1. Validate input (2-4 handles, rate limit check via Redis)
-2. Resolve handles to channel IDs (YouTube search API)
-3. Fetch channel stats (YouTube channels API)
-4. Fetch all videos via uploads playlist (YouTube playlistItems + videos APIs)
+2. Resolve handles to channel data via `forHandle` parameter on Channels endpoint (1 quota unit per channel, see [ADR-015](../adrs/015-channel-resolution-forhandle.md)). Atomic fail — all channels must resolve or comparison fails.
+3. Fetch videos via uploads playlist (YouTube playlistItems + videos APIs), stopping when `publishedAt < since`. Default `since`: 4 months ago. Channel-level all-time stats already fetched in step 2.
 5. Compute all metrics (engagement, categories, distribution, patterns, etc.)
 6. Store raw + computed data in Convex (source of truth)
 7. Cache computed metrics in Redis (hot cache, 4h TTL)
@@ -401,8 +402,11 @@ data: { reportId: "abc123" }
 
 ### 7.1 Raw Video Data (stored in Convex)
 
+Fat storage — all fields the YouTube API returns, normalized via Zod at the API boundary. See [ADR-014](../adrs/014-fat-raw-data-storage.md).
+
 ```typescript
 interface RawVideo {
+  // Core (used by V1 computation modules)
   id: string
   title: string
   publishedAt: string        // ISO 8601
@@ -411,6 +415,16 @@ interface RawVideo {
   comments: number
   durationSec: number
   tags: string[]
+
+  // Extended (stored for future analysis, not used by V1 modules)
+  description: string
+  categoryId: string         // YouTube's own category ID
+  channelId: string
+  thumbnailUrl: string       // Default thumbnail
+  topicCategories: string[]  // Wikipedia-based topic URLs
+  definition: string         // "hd" or "sd"
+  caption: boolean           // Whether captions are available
+  defaultLanguage?: string
 }
 ```
 
@@ -418,6 +432,7 @@ interface RawVideo {
 
 ```typescript
 interface RawChannel {
+  // Core (used by V1 computation modules)
   id: string
   title: string
   handle: string
@@ -426,8 +441,20 @@ interface RawChannel {
   videoCount: number
   joinedDate: string         // ISO 8601
   uploadsPlaylistId: string
+
+  // Extended (stored for future analysis)
+  description: string
+  country?: string
+  thumbnailUrl: string       // Channel avatar
+  bannerUrl?: string         // Channel banner
+  keywords: string[]         // Channel-level SEO (from brandingSettings)
+  topicCategories: string[]  // Wikipedia-based topic URLs
 }
 ```
+
+### 7.2a YouTube API Response Validation
+
+Raw API responses are validated through Zod schemas at the `client.ts` boundary before normalization into the interfaces above. This replaces ad-hoc `|| 0` fallbacks with a single source of truth for the response shape. Zod schemas (`YouTubeChannelResponseSchema`, `YouTubeVideoResponseSchema`, `YouTubePlaylistItemsResponseSchema`) are defined in `lib/youtube/types.ts`.
 
 ### 7.3 Computed Report (stored in Convex + cached in Redis)
 
@@ -449,6 +476,113 @@ interface ComputedReport {
   contentFreshness: ContentFreshnessData
   verdict: VerdictData
   executiveSummary: string
+}
+```
+
+### 7.3a Computed Report Sub-Types
+
+```typescript
+interface ChannelOverviewData {
+  channel: RawChannel
+  avgViewsPerVideo: number
+  topVideo: { title: string; views: number }
+  viewsPerSub: number
+  viewsPerSubPerVideo: number
+}
+
+interface MonthlyData {
+  month: string              // YYYY-MM
+  channelId: string
+  videoCount: number
+  totalViews: number
+  avgViewsPerVideo: number
+  totalLikes: number
+  totalComments: number
+  momChange: number | null   // % change from previous month, null for first
+}
+
+interface EngagementData {
+  perChannel: {
+    channelId: string
+    overallRate: number
+    likeRate: number
+    commentRate: number
+    medianPerVideoRate: number
+  }[]
+  monthly: { month: string; channelId: string; engagementRate: number; views: number }[]
+  byDuration: { bucket: string; channelId: string; count: number; avgViews: number; engagementRate: number }[]
+  topEngaged: { channelId: string; title: string; views: number; engagementRate: number }[]
+}
+
+interface CategoryData {
+  name: string
+  channelId: string
+  videoCount: number
+  totalViews: number
+  avgViews: number
+  engagementRate: number
+  topVideo: { title: string; views: number }
+}
+
+interface DistributionData {
+  perChannel: {
+    channelId: string
+    mean: number; median: number; meanMedianRatio: number
+    gini: number; top10PctShare: number
+    percentiles: { p10: number; p25: number; p50: number; p75: number; p90: number; p95: number }
+  }[]
+  viralThresholds: {
+    channelId: string
+    gte1k: { count: number; total: number; pct: number }
+    gte10k: { count: number; total: number; pct: number }
+    gte100k: { count: number; total: number; pct: number }
+    gte1m: { count: number; total: number; pct: number }
+  }[]
+}
+
+interface PostingPatternsData {
+  perChannel: { channelId: string; avgUploadsPerMonth: number; avgGapDays: number; medianGapDays: number; maxGapDays: number }[]
+  dayOfWeek: { day: string; channelId: string; count: number; avgViews: number }[]
+  hourOfDay: { hour: string; channelId: string; count: number; avgViews: number }[]
+  durationBuckets: { bucket: string; channelId: string; count: number; avgViews: number; engagementRate: number }[]
+}
+
+interface TitleAnalysisData {
+  perChannel: {
+    channelId: string; avgTitleLength: number
+    questionPct: number; questionAvgViews: number
+    emojiPct: number; emojiAvgViews: number
+    numberPct: number; numberAvgViews: number
+  }[]
+  topTags: { channelId: string; tags: { tag: string; count: number }[] }[]
+}
+
+interface GrowthData {
+  monthlyComparison: MonthlyData[]   // Serves Report Section 3 (MoM Viewership)
+  lifecyclePhases: {                 // Serves Report Section 5 (Growth Trajectory)
+    channelId: string
+    phases: { name: string; period: string; avgMonthlyViews: number; character: string }[]
+  }[]
+}
+
+interface SubscriberEfficiencyData {
+  perChannel: { channelId: string; viewsPerSub: number; viewsPerSubPerVideo: number }[]
+}
+
+interface ContentFreshnessData {
+  perChannel: { channelId: string; recentCount: number; recentAvgViews: number; allTimeAvgViews: number; deltaPercent: number }[]
+}
+
+interface VerdictDimension {
+  dimension: string
+  winnerId: string | null    // null = tie (difference < 5%)
+  margin: string             // "Slight" | "Moderate" | "Strong"
+  notes: string
+}
+
+interface VerdictData {
+  dimensions: VerdictDimension[]   // 15 dimensions
+  summary: string
 }
 ```
 
@@ -568,7 +702,80 @@ Auto-generated from computed metrics using template:
 [Channel B's strength] ([value]). [Trend observation]. [Key insight]."
 ```
 
-For V1, template-based. Future: LLM-generated summaries using raw data.
+For V1, template-based. Future: LLM-generated summaries using raw data (see brainstorm FS-5, FS-6).
+
+### 8.5 Growth Trajectory (growth.ts)
+
+One module serves both Report Section 3 (MoM Viewership) and Section 5 (Growth Trajectory). Monthly aggregation is the shared prerequisite.
+
+**Monthly aggregation**: Group videos by `YYYY-MM` from `publishedAt`. Per month: videoCount, totalViews, avgViewsPerVideo, totalLikes, totalComments. MoM change = `(current - previous) / previous * 100`, null for first month.
+
+**Lifecycle phases**: Split channel timeline into thirds (or detect inflection points based on MoM trend). Each phase: name (Launch/Growth/Peak/Decline/Plateau), period, avgMonthlyViews, character description.
+
+Returns: `{ monthlyComparison: MonthlyData[], lifecyclePhases: {...}[] }`
+
+Accepts `referenceDate: Date` for deterministic date-relative computation.
+
+### 8.6 Verdict Scoring (verdict.ts)
+
+Scores channels across 15 dimensions (matching WW vs FRA report):
+
+| # | Dimension | Primary Data Source |
+|---|-----------|-------------------|
+| 1 | Scale & Reach | overview (totalViews, subscriberCount) |
+| 2 | Engagement Quality | engagement (medianPerVideoRate, commentRate) |
+| 3 | Content-Product Fit | categories (concentration of top categories) |
+| 4 | Growth Trajectory | growth (MoM trend direction, lifecycle phase) |
+| 5 | Upload Strategy | patterns (avgUploadsPerMonth, gap consistency) |
+| 6 | SEO / Discoverability | titles (tag breadth, keyword strategy) |
+| 7 | Subscriber Efficiency | subscriberEfficiency (viewsPerSubPerVideo) |
+| 8 | Duration Strategy | patterns (duration bucket distribution, sweet spot) |
+| 9 | Title Optimization | titles (questionPct, numberPct, emojiPct, avgViews comparison) |
+| 10 | Posting Optimization | patterns (best day/hour alignment, upload timing) |
+| 11 | Content Freshness | contentFreshness (deltaPercent — recent vs all-time) |
+| 12 | Brand Building | patterns (upload consistency) + titles (format consistency) |
+| 13 | Viral Potential | distribution (gte100k pct, top10PctShare) |
+| 14 | Audience Depth | engagement (commentRate as depth proxy) |
+| 15 | Long-term Defensibility | categories (niche concentration) + engagement (depth signals) |
+
+**Scoring algorithm**: Threshold-based with ties. For each dimension, extract the relevant metric(s), compare across channels. If difference < 5%: tie (`winnerId: null`). Otherwise: higher value wins. Margin classified as Slight (<15%), Moderate (15-50%), Strong (>50%).
+
+### 8.7 Posting Patterns (patterns.ts)
+
+- **Upload frequency**: avgUploadsPerMonth, avgGapDays, medianGapDays, maxGapDays
+- **Day of week**: group videos by day name from `publishedAt`, count + avgViews per day
+- **Hour of day**: group by hour (UTC) from `publishedAt`, count + avgViews per hour
+- **Duration sweet spot**: 7 buckets (0-30s, 30-60s, 1-2min, 2-5min, 5-10min, 10-20min, 20min+), count + avgViews + engagementRate per bucket
+
+### 8.8 Title & SEO Analysis (titles.ts)
+
+- **Question detection**: title contains `?`
+- **Emoji detection**: Unicode property escape `\p{Emoji}`
+- **Number/currency detection**: `\d` or `₹` in title
+- **Average title length**: character count
+- **Top tags**: top 15 tags per channel from video `tags[]` arrays, sorted by frequency
+- Per-pattern: count, percentage of library, average views for videos with that pattern vs without
+
+### 8.9 Orchestrator Architecture (metrics.ts)
+
+Two-phase composition:
+
+```
+Phase 1 (independent, parallelizable):
+  engagement, categories, distribution, patterns, titles, growth
+
+Phase 2 (depends on Phase 1 outputs):
+  verdict, summary
+
+Inline (no separate module):
+  overview, subscriberEfficiency, contentFreshness
+```
+
+Accepts `referenceDate: Date` parameter for deterministic date-dependent computation (contentFreshness, growth). No `new Date()` calls inside — caller passes the reference date.
+
+### 8.10 API Response Validation
+
+YouTube API responses are validated through Zod schemas at the `client.ts` boundary before normalization into `RawVideo`/`RawChannel` interfaces. This replaces ad-hoc `|| 0` fallbacks with a declared schema. See [ADR-014](../adrs/014-fat-raw-data-storage.md).
 
 ---
 
