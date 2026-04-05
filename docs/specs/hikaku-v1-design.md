@@ -1,9 +1,13 @@
 # Hikaku V1 — Product Design Specification
 
-**Status**: Draft (revised 2026-03-17 — Convex backend, analytics, 6h expiry, data lifecycle)
-**Date**: 2026-03-16
+**Status**: Active — covers all V1 development
 **Author**: Purujit Negi + Claude (AI pair)
-**ADRs**: [001](../adrs/001-tech-stack-nextjs-vercel.md) through [012](../adrs/012-analytics-driven-development.md)
+**ADRs**: [001](../adrs/001-tech-stack-nextjs-vercel.md) through [015](../adrs/015-channel-resolution-forhandle.md)
+
+**Revision History**:
+- 2026-03-16: Initial draft — product overview, tech stack, design system, pages, report sections, API routes, data types
+- 2026-03-17: Convex backend (ADR-011), analytics-driven development (ADR-012), 6h link expiry, data lifecycle, frontend state (ADR-013)
+- 2026-04-05: Plan 2 metrics engine — fat raw data (ADR-014), forHandle resolution (ADR-015), 15 verdict dimensions with scoring, all sub-type definitions, computation module specs (8.5-8.10), `since` parameter, Zod API validation
 
 ---
 

@@ -8,7 +8,7 @@
 
 **Tech Stack:** TypeScript, Zod (API response validation), YouTube Data API v3
 
-**Spec:** `docs/specs/2026-03-16-hikaku-v1-design.md` (Sections 7, 8)
+**Spec:** `docs/specs/hikaku-v1-design.md` (Sections 7, 8)
 **ADRs:** `docs/adrs/004` (data architecture), `docs/adrs/011` (Convex backend)
 **Source scripts:** `gi-client-web` repo, branch `analysis/youtube-channel-comparison`, files: `youtube-channel-stats.mjs`, `youtube-video-breakdown.mjs`, `engagement-comparison.mjs`, `deep-inference.mjs`
 
