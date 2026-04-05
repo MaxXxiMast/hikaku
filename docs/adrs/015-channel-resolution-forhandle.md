@@ -46,12 +46,14 @@ Note: these estimates assume default 4-month time window (brainstorm decision #1
 ## Implementation
 
 ```typescript
-// Single call: resolve handle + get full channel data
+// Single call: resolve handle + get full channel data (fat storage per ADR-014)
 const data = await ytFetch("channels", {
-  part: "snippet,statistics,contentDetails",
+  part: "snippet,statistics,contentDetails,brandingSettings,topicDetails",
   forHandle: handle, // e.g., "@WintWealthYT"
 }, apiKey)
 ```
+
+Note: 5 parts requested to support fat raw data storage (ADR-014). `brandingSettings` provides channel keywords, `topicDetails` provides topic categories. Quota cost remains 1 unit per call regardless of parts requested.
 
 - `resolveChannel(handle, apiKey)` calls Channels endpoint with `forHandle`
 - Returns normalized `RawChannel` with all fields
