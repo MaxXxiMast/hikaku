@@ -498,14 +498,34 @@ export const sampleVideosB: RawVideo[] = [/* 5+ videos for FRA */]
 export const REFERENCE_DATE = new Date("2026-03-01T00:00:00Z")
 ```
 
-**Sample YouTube API responses** (for Zod schema tests — must match full fat shape, NOT placeholders):
+**Sample YouTube API responses** (for Zod schema tests — must match full fat shape):
+
+Build these by mirroring the Zod schemas from Task 1.1 with values from `sampleChannelA` and `sampleVideosA[0]`. Every field the Zod schema expects must be present. Use the inline API samples from `types.test.ts` (Task 1.1) as the structural template — those already have complete shapes for channel, video, and playlist responses.
+
 ```typescript
-// Build from sampleChannelA data — must include snippet, statistics, contentDetails,
-// brandingSettings, topicDetails matching the YouTube API v3 response structure.
-// Mirror the shape from the Zod schemas defined in Task 1.1.
-export const sampleYouTubeChannelResponse = { items: [{ id: "UCggPd3Vf9ooG2r4I_ZNWBzA", snippet: { ... }, statistics: { ... }, ... }] }
-export const sampleYouTubeVideoResponse = { items: [{ id: "v1", snippet: { ... }, statistics: { ... }, ... }] }
-export const sampleYouTubePlaylistItemsResponse = { items: [{ contentDetails: { videoId: "v1" } }] }
+export const sampleYouTubeChannelResponse = {
+  items: [{
+    id: sampleChannelA.id,
+    snippet: {
+      title: sampleChannelA.title,
+      publishedAt: sampleChannelA.joinedDate,
+      customUrl: sampleChannelA.handle,
+      description: sampleChannelA.description,
+      thumbnails: { default: { url: sampleChannelA.thumbnailUrl } },
+      country: sampleChannelA.country,
+    },
+    statistics: {
+      subscriberCount: String(sampleChannelA.subscriberCount),
+      viewCount: String(sampleChannelA.totalViews),
+      videoCount: String(sampleChannelA.videoCount),
+    },
+    contentDetails: { relatedPlaylists: { uploads: sampleChannelA.uploadsPlaylistId } },
+    brandingSettings: { channel: { keywords: sampleChannelA.keywords.join(" ") } },
+    topicDetails: { topicCategories: sampleChannelA.topicCategories },
+  }],
+}
+// sampleYouTubeVideoResponse and sampleYouTubePlaylistItemsResponse follow the same pattern
+// using sampleVideosA[0] data. All fields from Zod schema must be present with string numbers.
 ```
 
 **Constraints:**
@@ -514,6 +534,11 @@ export const sampleYouTubePlaylistItemsResponse = { items: [{ contentDetails: { 
 - Include at least one short (<60s), one medium (1-10min), one long (>10min) per channel
 - API response fixtures must include ALL fat fields (description, categoryId, topicCategories, etc.)
 - Export a `REFERENCE_DATE` constant for deterministic testing: `new Date("2026-03-01T00:00:00Z")`
+- Export helper functions to avoid duplication in Chunk 4 tests:
+  - `buildOverview(channels, videosByChannel)` — returns `ChannelOverviewData[]` (same logic orchestrator uses inline)
+  - `buildContentFreshness(channels, videosByChannel, referenceDate)` — returns `ContentFreshnessData`
+  - `buildSubscriberEfficiency(channels, videosByChannel)` — returns `SubscriberEfficiencyData`
+  These are test helpers, not production code. They mirror the orchestrator's inline logic so verdict and summary tests don't duplicate 30+ lines each.
 
 - [ ] **Step 2: Commit**
 
@@ -1357,7 +1382,7 @@ git commit -m "feat: implement growth trajectory (monthly aggregation, MoM chang
 
 ## Chunk 4: Phase-2 Computation Modules
 
-These depend on outputs from Chunk 3 modules.
+**BLOCKING**: All 6 Chunk 3 tasks (3.1–3.6) must be complete and passing before Chunk 4 can start. Verdict and summary tests import and execute Chunk 3 modules at the top level — if any Chunk 3 module is missing or broken, these tests will fail at collection time with opaque "Failed to collect" errors. If this happens, verify all Chunk 3 modules pass independently first, then check fixture data compatibility.
 
 ### Task 4.1: Head-to-head verdict
 
@@ -1376,70 +1401,31 @@ import { computeDistribution } from "@/lib/youtube/distribution"
 import { computePostingPatterns } from "@/lib/youtube/patterns"
 import { computeTitleAnalysis } from "@/lib/youtube/titles"
 import { computeGrowth } from "@/lib/youtube/growth"
-import type { ContentFreshnessData, SubscriberEfficiencyData } from "@/lib/youtube/types"
+import type { SubscriberEfficiencyData, ContentFreshnessData } from "@/lib/youtube/types"
 import {
   sampleChannelA, sampleChannelB,
   sampleVideosA, sampleVideosB,
   REFERENCE_DATE,
+  buildOverview,
+  buildContentFreshness,
+  buildSubscriberEfficiency,
 } from "./fixtures"
 
-// Compute real inputs from fixture data using actual modules.
-// ContentFreshness and SubscriberEfficiency are constructed manually
-// since they are computed inline by the orchestrator (brainstorm decision #3).
+// Compute real inputs from fixture data using actual modules + fixture helpers.
+// Overview, subscriberEfficiency, contentFreshness use fixture helpers
+// (mirrors orchestrator inline logic, per brainstorm decision #3).
 const channels = [sampleChannelA, sampleChannelB]
 const videosByChannel = { [sampleChannelA.id]: sampleVideosA, [sampleChannelB.id]: sampleVideosB }
 
-const overview = channels.map((ch) => {
-  const videos = videosByChannel[ch.id] || []
-  const totalViews = videos.reduce((s, v) => s + v.views, 0)
-  const sorted = [...videos].sort((a, b) => b.views - a.views)
-  return {
-    channel: ch,
-    avgViewsPerVideo: videos.length > 0 ? Math.round(totalViews / videos.length) : 0,
-    topVideo: sorted[0] ? { title: sorted[0].title, views: sorted[0].views } : { title: "", views: 0 },
-    viewsPerSub: ch.subscriberCount > 0 ? totalViews / ch.subscriberCount : 0,
-    viewsPerSubPerVideo: ch.subscriberCount > 0 && videos.length > 0 ? totalViews / ch.subscriberCount / videos.length : 0,
-  }
-})
-
+const overview = buildOverview(channels, videosByChannel)
 const engagement = computeEngagement(channels, videosByChannel)
 const categories = computeCategories(channels, videosByChannel)
 const distribution = computeDistribution(channels, videosByChannel)
 const postingPatterns = computePostingPatterns(channels, videosByChannel)
 const titleAnalysis = computeTitleAnalysis(channels, videosByChannel)
 const growth = computeGrowth(channels, videosByChannel, REFERENCE_DATE)
-
-// Manually construct inline-computed types (same logic as orchestrator)
-const subscriberEfficiency: SubscriberEfficiencyData = {
-  perChannel: channels.map((ch) => {
-    const videos = videosByChannel[ch.id] || []
-    const totalViews = videos.reduce((s, v) => s + v.views, 0)
-    return {
-      channelId: ch.id,
-      viewsPerSub: ch.subscriberCount > 0 ? totalViews / ch.subscriberCount : 0,
-      viewsPerSubPerVideo: ch.subscriberCount > 0 && videos.length > 0 ? totalViews / ch.subscriberCount / videos.length : 0,
-    }
-  }),
-}
-
-const contentFreshness: ContentFreshnessData = {
-  perChannel: channels.map((ch) => {
-    const videos = videosByChannel[ch.id] || []
-    const totalViews = videos.reduce((s, v) => s + v.views, 0)
-    const allTimeAvg = videos.length > 0 ? Math.round(totalViews / videos.length) : 0
-    const thirtyDaysAgo = new Date(REFERENCE_DATE.getTime() - 30 * 24 * 60 * 60 * 1000)
-    const recent = videos.filter((v) => new Date(v.publishedAt) >= thirtyDaysAgo)
-    const recentViews = recent.reduce((s, v) => s + v.views, 0)
-    const recentAvg = recent.length > 0 ? Math.round(recentViews / recent.length) : 0
-    return {
-      channelId: ch.id,
-      recentCount: recent.length,
-      recentAvgViews: recentAvg,
-      allTimeAvgViews: allTimeAvg,
-      deltaPercent: allTimeAvg > 0 ? ((recentAvg - allTimeAvg) / allTimeAvg) * 100 : 0,
-    }
-  }),
-}
+const subscriberEfficiency = buildSubscriberEfficiency(channels, videosByChannel)
+const contentFreshness = buildContentFreshness(channels, videosByChannel, REFERENCE_DATE)
 
 const result = computeVerdict(
   channels, overview, engagement, growth, distribution,
@@ -1477,11 +1463,41 @@ describe("computeVerdict", () => {
   })
 
   it("produces ties when difference < 5%", () => {
-    // WW engagement ~2.04% vs FRA ~1.99% — within 5% threshold
-    const engDimension = result.dimensions.find((d) => d.dimension === "Engagement Quality")!
-    // With fixture data, this should be close enough for a tie
-    // If fixture values don't produce a tie, this test documents the actual behavior
-    expect(engDimension.winnerId === null || typeof engDimension.winnerId === "string").toBe(true)
+    // Test with synthetic data that guarantees a tie
+    const tieChannels = [
+      { ...sampleChannelA, id: "tie-a", totalViews: 1000000, subscriberCount: 10000 },
+      { ...sampleChannelB, id: "tie-b", totalViews: 1020000, subscriberCount: 10100 }, // ~2% difference
+    ]
+    const tieVideos = {
+      "tie-a": sampleVideosA.map((v) => ({ ...v, views: 1000, likes: 20, comments: 2 })),
+      "tie-b": sampleVideosB.map((v) => ({ ...v, views: 1010, likes: 21, comments: 2 })), // ~1% difference
+    }
+    const tieEngagement = computeEngagement(tieChannels, tieVideos)
+    const tieCategories = computeCategories(tieChannels, tieVideos)
+    const tieDistribution = computeDistribution(tieChannels, tieVideos)
+    const tiePatterns = computePostingPatterns(tieChannels, tieVideos)
+    const tieTitles = computeTitleAnalysis(tieChannels, tieVideos)
+    const tieGrowth = computeGrowth(tieChannels, tieVideos, REFERENCE_DATE)
+    const tieOverview = tieChannels.map((ch) => ({
+      channel: ch,
+      avgViewsPerVideo: 1000,
+      topVideo: { title: "T", views: 1000 },
+      viewsPerSub: 100,
+      viewsPerSubPerVideo: 0.1,
+    }))
+    const tieSubEff: SubscriberEfficiencyData = {
+      perChannel: tieChannels.map((ch) => ({ channelId: ch.id, viewsPerSub: 100, viewsPerSubPerVideo: 0.1 })),
+    }
+    const tieFreshness: ContentFreshnessData = {
+      perChannel: tieChannels.map((ch) => ({ channelId: ch.id, recentCount: 5, recentAvgViews: 1000, allTimeAvgViews: 1000, deltaPercent: 0 })),
+    }
+    const tieResult = computeVerdict(
+      tieChannels, tieOverview, tieEngagement, tieGrowth, tieDistribution,
+      tiePatterns, tieTitles, tieCategories, tieSubEff, tieFreshness
+    )
+    // With nearly identical data, most dimensions should be ties
+    const tieCount = tieResult.dimensions.filter((d) => d.winnerId === null).length
+    expect(tieCount).toBeGreaterThan(5) // majority should be ties
   })
 
   it("generates a non-empty summary string", () => {
@@ -1558,50 +1574,23 @@ import { generateSummary } from "@/lib/youtube/summary"
 import { computeEngagement } from "@/lib/youtube/engagement"
 import { computeDistribution } from "@/lib/youtube/distribution"
 import { computeGrowth } from "@/lib/youtube/growth"
-import type { ChannelOverviewData, ContentFreshnessData } from "@/lib/youtube/types"
 import {
   sampleChannelA, sampleChannelB,
   sampleVideosA, sampleVideosB,
   REFERENCE_DATE,
+  buildOverview,
+  buildContentFreshness,
 } from "./fixtures"
 
-// Compute real inputs from fixture data
+// Compute real inputs using actual modules + fixture helpers
 const channels = [sampleChannelA, sampleChannelB]
 const videosByChannel = { [sampleChannelA.id]: sampleVideosA, [sampleChannelB.id]: sampleVideosB }
 
-const overview: ChannelOverviewData[] = channels.map((ch) => {
-  const videos = videosByChannel[ch.id] || []
-  const totalViews = videos.reduce((s, v) => s + v.views, 0)
-  const sorted = [...videos].sort((a, b) => b.views - a.views)
-  return {
-    channel: ch,
-    avgViewsPerVideo: videos.length > 0 ? Math.round(totalViews / videos.length) : 0,
-    topVideo: sorted[0] ? { title: sorted[0].title, views: sorted[0].views } : { title: "", views: 0 },
-    viewsPerSub: ch.subscriberCount > 0 ? totalViews / ch.subscriberCount : 0,
-    viewsPerSubPerVideo: ch.subscriberCount > 0 && videos.length > 0 ? totalViews / ch.subscriberCount / videos.length : 0,
-  }
-})
-
+const overview = buildOverview(channels, videosByChannel)
 const engagement = computeEngagement(channels, videosByChannel)
 const distribution = computeDistribution(channels, videosByChannel)
 const growth = computeGrowth(channels, videosByChannel, REFERENCE_DATE)
-
-const contentFreshness: ContentFreshnessData = {
-  perChannel: channels.map((ch) => {
-    const videos = videosByChannel[ch.id] || []
-    const totalViews = videos.reduce((s, v) => s + v.views, 0)
-    const allTimeAvg = videos.length > 0 ? Math.round(totalViews / videos.length) : 0
-    const thirtyDaysAgo = new Date(REFERENCE_DATE.getTime() - 30 * 24 * 60 * 60 * 1000)
-    const recent = videos.filter((v) => new Date(v.publishedAt) >= thirtyDaysAgo)
-    const recentViews = recent.reduce((s, v) => s + v.views, 0)
-    const recentAvg = recent.length > 0 ? Math.round(recentViews / recent.length) : 0
-    return {
-      channelId: ch.id, recentCount: recent.length, recentAvgViews: recentAvg,
-      allTimeAvgViews: allTimeAvg,
-      deltaPercent: allTimeAvg > 0 ? ((recentAvg - allTimeAvg) / allTimeAvg) * 100 : 0,
-    }
-  }),
-}
+const contentFreshness = buildContentFreshness(channels, videosByChannel, REFERENCE_DATE)
 
 const summary = generateSummary(channels, overview, engagement, growth, distribution, contentFreshness)
 
@@ -1768,10 +1757,11 @@ export const computeReport = (
 ```
 
 **Constraints:**
-- Two-phase execution:
-  - Phase 1 (independent): `computeEngagement`, `computeCategories`, `computeDistribution`, `computePostingPatterns`, `computeTitleAnalysis`, `computeGrowth`
-  - Phase 2 (depends on Phase 1): `computeVerdict`, `generateSummary`
-- Inline computations (no separate module):
+- Three-phase execution inside orchestrator:
+  - **Inline first**: Compute `overview`, `subscriberEfficiency`, `contentFreshness` — these are needed by Phase 2 modules
+  - **Phase 1** (independent, after inline): `computeEngagement`, `computeCategories`, `computeDistribution`, `computePostingPatterns`, `computeTitleAnalysis`, `computeGrowth`
+  - **Phase 2** (depends on inline + Phase 1): `computeVerdict` (receives overview, engagement, growth, distribution, postingPatterns, titleAnalysis, categories, subscriberEfficiency, contentFreshness), `generateSummary` (receives overview, engagement, growth, distribution, contentFreshness)
+- Inline computations (no separate module — computed before Phase 1 and Phase 2):
   - `overview`: avgViewsPerVideo, topVideo, viewsPerSub, viewsPerSubPerVideo
   - `subscriberEfficiency`: viewsPerSub, viewsPerSubPerVideo
   - `contentFreshness`: recent (30 days from referenceDate) vs all-time avg views, delta %
@@ -1842,6 +1832,12 @@ git push -u origin feature/plan-2-metrics-engine
 - [ ] `forHandle` used for channel resolution (not Search API)
 - [ ] Zod validates YouTube API responses at the client boundary
 - [ ] `since` parameter controls time-windowed video fetching
+
+## Known Limitations (address in future plans)
+
+- **2-channel testing only**: All tests use 2 channels. 3-4 channel support (spec says 2-4) is untested. Verdict scoring with >2 channels (pairwise vs multi-way winner selection) may need adjustment. Add 3-4 channel tests when UI supports channel count selection (Plan 3).
+- **Range-only assertions**: Some tests assert `> 0` or `>= 0` instead of fixture-specific expected values. These pass even with broken formulas. Tighten assertions as fixture data stabilizes.
+- **Atomic fail enforcement**: `resolveChannel` throws on missing channels, but the "all must resolve or none proceed" guarantee is the API route's responsibility (Plan 3), not the computation layer's.
 
 ---
 
