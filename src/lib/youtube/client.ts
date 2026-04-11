@@ -38,14 +38,21 @@ const buildUrl = (path: string, params: Record<string, string>): string => {
 }
 
 const apiFetch = async (url: string): Promise<unknown> => {
-  const res = await fetch(url)
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}))
-    const message =
-      (body as { error?: { message?: string } })?.error?.message ?? "Unknown error"
-    throw new Error(`YouTube API error (${res.status}): ${message}`)
+  try {
+    const res = await fetch(url)
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      const message =
+        typeof body === "object" && body !== null && "error" in body
+          ? String((body as Record<string, { message?: string }>).error?.message ?? "Unknown error")
+          : "Unknown error"
+      throw new Error(`YouTube API error (${res.status}): ${message}`)
+    }
+    return res.json()
+  } catch (err) {
+    if (err instanceof Error && err.message.startsWith("YouTube API error")) throw err
+    throw new Error("YouTube API request failed")
   }
-  return res.json()
 }
 
 // ---------------------------------------------------------------------------
@@ -106,6 +113,8 @@ export const resolveChannel = async (
  *
  * When `since` is provided, videos with publishedAt < since are filtered out.
  */
+const MAX_VIDEOS = 500
+
 export const fetchAllVideos = async (
   uploadsPlaylistId: string,
   apiKey: string,
@@ -113,13 +122,13 @@ export const fetchAllVideos = async (
 ): Promise<RawVideo[]> => {
   const { since } = options ?? {}
 
-  // --- Step 1: Collect all video IDs via paginated playlistItems ---
+  // --- Step 1: Collect video IDs via paginated playlistItems (capped at MAX_VIDEOS) ---
   const videoIds: string[] = []
   let pageToken: string | undefined = undefined
 
   do {
     const params: Record<string, string> = {
-      part: "contentDetails",
+      part: "contentDetails,snippet",
       playlistId: uploadsPlaylistId,
       maxResults: "50",
       key: apiKey,
@@ -132,12 +141,21 @@ export const fetchAllVideos = async (
     const raw = await apiFetch(url)
     const parsed = YouTubePlaylistItemsResponseSchema.parse(raw)
 
+    let allOlderThanCutoff = since ? parsed.items.length > 0 : false
     for (const item of parsed.items) {
       videoIds.push(item.contentDetails.videoId)
+      if (since && item.contentDetails.videoPublishedAt) {
+        if (new Date(item.contentDetails.videoPublishedAt) >= since) {
+          allOlderThanCutoff = false
+        }
+      }
     }
 
+    // Early stop: all videos on this page are older than the since cutoff
+    if (since && allOlderThanCutoff) break
+
     pageToken = parsed.nextPageToken
-  } while (pageToken)
+  } while (pageToken && videoIds.length < MAX_VIDEOS)
 
   if (videoIds.length === 0) {
     return []

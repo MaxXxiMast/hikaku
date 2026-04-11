@@ -16,10 +16,9 @@ import { safeDivide } from "@/lib/utils"
 // ---------------------------------------------------------------------------
 
 const CATEGORIES: { name: string; keywords: string[] }[] = [
-  { name: "Shorts", keywords: ["#", "short"] },
   { name: "Taxation", keywords: ["tax", "taxed", "taxation"] },
   { name: "Income Strategy", keywords: ["passive income", "monthly income", "bond ladder"] },
-  { name: "FD Comparison", keywords: ["fixed deposit"] },
+  { name: "FD Comparison", keywords: ["fd", "fixed deposit"] },
   { name: "Risk/Safety", keywords: ["credit rating", "safe"] },
   { name: "Bond Basics", keywords: ["ytm", "coupon", "yield", "face value"] },
   { name: "Asset Comparison", keywords: ["debt fund", "mutual fund", "stock", "equity", "gold", "real estate"] },
@@ -28,6 +27,7 @@ const CATEGORIES: { name: string; keywords: string[] }[] = [
   { name: "Educational", keywords: ["how to", "beginner", "what is", "what are", "explained", "guide"] },
   { name: "Myths/Mistakes", keywords: ["mistake", "avoid", "myth", "truth", "wrong", "never"] },
   { name: "Comparison", keywords: ["vs", "better", "comparison"] },
+  { name: "Shorts", keywords: ["#shorts", "#short", "short"] },
 ]
 
 // ---------------------------------------------------------------------------

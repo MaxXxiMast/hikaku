@@ -54,6 +54,16 @@ export const engagementRate = (likes: number, comments: number, views: number): 
 }
 
 export const safeDivide = (numerator: number, denominator: number): number => {
-  if (denominator === 0) return 0
+  if (denominator === 0 || !Number.isFinite(numerator) || !Number.isFinite(denominator)) return 0
   return numerator / denominator
+}
+
+export const getDurationBucket = (durationSec: number): string => {
+  if (durationSec <= 30) return "0-30s"
+  if (durationSec <= 60) return "30-60s"
+  if (durationSec <= 120) return "1-2min"
+  if (durationSec <= 300) return "2-5min"
+  if (durationSec <= 600) return "5-10min"
+  if (durationSec <= 1200) return "10-20min"
+  return "20min+"
 }

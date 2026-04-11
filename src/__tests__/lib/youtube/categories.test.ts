@@ -15,8 +15,11 @@ describe("classifyVideo", () => {
   it("classifies myths/mistakes", () => {
     expect(classifyVideo("5 Mistakes Every Bond Investor Makes")).toBe("Myths/Mistakes")
   })
+  it("classifies FD comparison", () => {
+    expect(classifyVideo("FD vs Bonds: Which is Better?")).toBe("FD Comparison")
+  })
   it("classifies comparison", () => {
-    expect(classifyVideo("FD vs Bonds: Which is Better?")).toBe("Comparison")
+    expect(classifyVideo("India vs China: Which Economy is Better?")).toBe("Comparison")
   })
   it("classifies shorts", () => {
     expect(classifyVideo("Bond Basics #shorts")).toBe("Shorts")

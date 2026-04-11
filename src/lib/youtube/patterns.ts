@@ -1,17 +1,7 @@
 import type { RawChannel, RawVideo, PostingPatternsData } from "@/lib/youtube/types"
-import { median, safeDivide } from "@/lib/utils"
+import { median, safeDivide, getDurationBucket } from "@/lib/utils"
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
-
-const getDurationBucket = (durationSec: number): string => {
-  if (durationSec <= 30) return "0-30s"
-  if (durationSec <= 60) return "30-60s"
-  if (durationSec <= 120) return "1-2min"
-  if (durationSec <= 300) return "2-5min"
-  if (durationSec <= 600) return "5-10min"
-  if (durationSec <= 1200) return "10-20min"
-  return "20min+"
-}
 
 export const computePostingPatterns = (
   channels: RawChannel[],

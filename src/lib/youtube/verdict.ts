@@ -31,18 +31,23 @@ const scoreDimension = (
   scores: number[],
   notes: string
 ): VerdictDimension => {
-  if (scores.length !== 2 || channelIds.length !== 2) {
+  if (scores.length < 2 || channelIds.length < 2) {
     return { dimension, winnerId: null, margin: "", notes }
   }
-  const [scoreA, scoreB] = scores
-  const [idA, idB] = channelIds
-  const higher = Math.max(scoreA, scoreB)
-  if (higher === 0) return { dimension, winnerId: null, margin: "", notes }
-  const diff = Math.abs(scoreA - scoreB) / higher
+
+  // Find the highest and second-highest scores
+  const indexed = scores.map((s, i) => ({ score: s, id: channelIds[i] }))
+  indexed.sort((a, b) => b.score - a.score)
+
+  const highest = indexed[0]
+  const secondHighest = indexed[1]
+
+  if (highest.score === 0) return { dimension, winnerId: null, margin: "", notes }
+  const diff = Math.abs(highest.score - secondHighest.score) / highest.score
   if (diff < TIE_THRESHOLD) return { dimension, winnerId: null, margin: "", notes }
-  const winnerId = scoreA > scoreB ? idA : idB
+
   const margin = diff < SLIGHT_THRESHOLD ? "Slight" : diff < MODERATE_THRESHOLD ? "Moderate" : "Strong"
-  return { dimension, winnerId, margin, notes }
+  return { dimension, winnerId: highest.id, margin, notes }
 }
 
 export const computeVerdict = (

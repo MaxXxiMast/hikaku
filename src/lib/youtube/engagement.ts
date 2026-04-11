@@ -1,19 +1,5 @@
 import type { RawChannel, RawVideo, EngagementData } from "@/lib/youtube/types"
-import { DURATION_BUCKETS } from "@/lib/youtube/types"
-import { engagementRate, median, safeDivide } from "@/lib/utils"
-
-const getDurationBucket = (durationSec: number): string => {
-  if (durationSec <= 30) return "0-30s"
-  if (durationSec <= 60) return "30-60s"
-  if (durationSec <= 120) return "1-2min"
-  if (durationSec <= 300) return "2-5min"
-  if (durationSec <= 600) return "5-10min"
-  if (durationSec <= 1200) return "10-20min"
-  return "20min+"
-}
-
-// Keep DURATION_BUCKETS referenced to satisfy the import (used as type documentation)
-void DURATION_BUCKETS
+import { engagementRate, median, safeDivide, getDurationBucket } from "@/lib/utils"
 
 export const computeEngagement = (
   channels: RawChannel[],

@@ -10,9 +10,8 @@
 import type { RawChannel, RawVideo, TitleAnalysisData } from "@/lib/youtube/types"
 import { safeDivide } from "@/lib/utils"
 
-// Emoji detection — broad Unicode ranges covering most emoji blocks
-const hasEmoji = (s: string): boolean =>
-  /[\uD800-\uDBFF][\uDC00-\uDFFF]|[\u2600-\u27BF]/.test(s)
+// Emoji detection — Unicode property escape (spec 8.8)
+const hasEmoji = (s: string): boolean => /\p{Emoji}/u.test(s)
 
 const hasNumber = (s: string): boolean => /\d|₹/.test(s)
 

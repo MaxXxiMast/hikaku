@@ -41,9 +41,9 @@ export const YouTubeChannelResponseSchema = z.object({
         defaultLanguage: z.string().optional(),
       }),
       statistics: z.object({
-        subscriberCount: z.coerce.number().optional().default(0),
-        viewCount: z.coerce.number().optional().default(0),
-        videoCount: z.coerce.number().optional().default(0),
+        subscriberCount: z.coerce.number().finite().optional().default(0),
+        viewCount: z.coerce.number().finite().optional().default(0),
+        videoCount: z.coerce.number().finite().optional().default(0),
         hiddenSubscriberCount: z.boolean().optional(),
       }),
       contentDetails: z.object({
@@ -107,10 +107,10 @@ export const YouTubeVideoResponseSchema = z.object({
         .optional(),
       statistics: z
         .object({
-          viewCount: z.coerce.number().optional().default(0),
-          likeCount: z.coerce.number().optional().default(0),
-          commentCount: z.coerce.number().optional().default(0),
-          favoriteCount: z.coerce.number().optional().default(0),
+          viewCount: z.coerce.number().finite().optional().default(0),
+          likeCount: z.coerce.number().finite().optional().default(0),
+          commentCount: z.coerce.number().finite().optional().default(0),
+          favoriteCount: z.coerce.number().finite().optional().default(0),
         })
         .optional(),
       contentDetails: z
