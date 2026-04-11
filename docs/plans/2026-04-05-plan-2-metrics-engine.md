@@ -1,6 +1,6 @@
 # Plan 2: Metrics Engine — YouTube API Client + Computation Modules
 
-> **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Build the complete YouTube data fetching and metrics computation engine that powers all 12 report sections. Pure functions: data in, metrics out. No UI, no API routes, no side effects.
 
@@ -110,7 +110,7 @@ No circular dependencies. Types are the only shared import.
 - Create: `src/lib/youtube/types.ts`
 - Test: `src/__tests__/lib/youtube/types.test.ts`
 
-- [ ] **Step 1: Write tests**
+- [x] **Step 1: Write tests**
 
 Create `src/__tests__/lib/youtube/types.test.ts`:
 ```typescript
@@ -271,7 +271,7 @@ describe("TypeScript interfaces", () => {
 })
 ```
 
-- [ ] **Step 2: Run test → verify FAIL**
+- [x] **Step 2: Run test → verify FAIL**
 
 ```bash
 pnpm test -- src/__tests__/lib/youtube/types.test.ts
@@ -279,7 +279,7 @@ pnpm test -- src/__tests__/lib/youtube/types.test.ts
 
 Expected: FAIL — types module doesn't exist.
 
-- [ ] **Step 3: Implement types.ts**
+- [x] **Step 3: Implement types.ts**
 
 **Signatures and constraints:**
 - Export Zod schemas: `YouTubeChannelResponseSchema`, `YouTubeVideoResponseSchema`, `YouTubePlaylistItemsResponseSchema`
@@ -295,13 +295,13 @@ Expected: FAIL — types module doesn't exist.
 - **Zero implementation imports** — this file has only types, Zod schemas, and constants, no logic
 - **Zod v4**: use Zod 4 APIs (v4.3.6 is installed). `z.coerce.number()` confirmed compatible.
 
-- [ ] **Step 4: Run test → verify PASS**
+- [x] **Step 4: Run test → verify PASS**
 
 ```bash
 pnpm test -- src/__tests__/lib/youtube/types.test.ts
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/youtube/types.ts src/__tests__/lib/youtube/types.test.ts
@@ -316,7 +316,7 @@ git commit -m "feat: define Zod API response schemas and all TypeScript interfac
 - Modify: `src/lib/utils.ts` (keep existing `cn` function)
 - Create: `src/__tests__/lib/utils.test.ts`
 
-- [ ] **Step 1: Write tests**
+- [x] **Step 1: Write tests**
 
 Create `src/__tests__/lib/utils.test.ts`:
 ```typescript
@@ -405,8 +405,8 @@ describe("safeDivide", () => {
 })
 ```
 
-- [ ] **Step 2: Run test → verify FAIL**
-- [ ] **Step 3: Implement utilities in `src/lib/utils.ts`**
+- [x] **Step 2: Run test → verify FAIL**
+- [x] **Step 3: Implement utilities in `src/lib/utils.ts`**
 
 **Signatures:**
 ```typescript
@@ -427,8 +427,8 @@ export const safeDivide = (numerator: number, denominator: number): number => { 
 - `computeGini` formula: `sum((2i - n - 1) * value_i) / (n^2 * mean)` where values sorted ascending
 - `parseDuration` parses ISO 8601 duration (`PT1H2M3S`) into seconds
 
-- [ ] **Step 4: Run test → verify PASS**
-- [ ] **Step 5: Commit**
+- [x] **Step 4: Run test → verify PASS**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/utils.ts src/__tests__/lib/utils.test.ts
@@ -442,7 +442,7 @@ git commit -m "feat: add shared math/formatting utilities (formatNumber, median,
 **Files:**
 - Create: `src/__tests__/lib/youtube/fixtures.ts`
 
-- [ ] **Step 1: Create shared test fixture data**
+- [x] **Step 1: Create shared test fixture data**
 
 Create `src/__tests__/lib/youtube/fixtures.ts` with:
 
@@ -540,7 +540,7 @@ export const sampleYouTubeChannelResponse = {
   - `buildSubscriberEfficiency(channels, videosByChannel)` — returns `SubscriberEfficiencyData`
   These are test helpers, not production code. They mirror the orchestrator's inline logic so verdict and summary tests don't duplicate 30+ lines each.
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add src/__tests__/lib/youtube/fixtures.ts
@@ -557,7 +557,7 @@ git commit -m "feat: add test fixtures with real WW vs FRA sample data and API r
 - Create: `src/lib/youtube/client.ts`
 - Test: `src/__tests__/lib/youtube/client.test.ts`
 
-- [ ] **Step 1: Write tests**
+- [x] **Step 1: Write tests**
 
 Create `src/__tests__/lib/youtube/client.test.ts`:
 ```typescript
@@ -780,8 +780,8 @@ describe("YouTube client", () => {
 })
 ```
 
-- [ ] **Step 2: Run test → verify FAIL**
-- [ ] **Step 3: Implement client.ts**
+- [x] **Step 2: Run test → verify FAIL**
+- [x] **Step 3: Implement client.ts**
 
 **Signatures:**
 ```typescript
@@ -803,8 +803,8 @@ export const fetchAllVideos = async (
 - Throw descriptive errors: `"Channel not found: @handle"`, `"YouTube API error (status): message"`
 - This is the ONLY module that calls `fetch`
 
-- [ ] **Step 4: Run test → verify PASS**
-- [ ] **Step 5: Commit**
+- [x] **Step 4: Run test → verify PASS**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/youtube/client.ts src/__tests__/lib/youtube/client.test.ts
@@ -823,7 +823,7 @@ All six modules depend only on `types.ts` and `utils.ts`. They can be implemente
 - Create: `src/lib/youtube/engagement.ts`
 - Test: `src/__tests__/lib/youtube/engagement.test.ts`
 
-- [ ] **Step 1: Write tests**
+- [x] **Step 1: Write tests**
 
 Create `src/__tests__/lib/youtube/engagement.test.ts`:
 ```typescript
@@ -889,7 +889,7 @@ describe("computeEngagement", () => {
 })
 ```
 
-- [ ] **Step 2: Run test → FAIL, implement, run test → PASS**
+- [x] **Step 2: Run test → FAIL, implement, run test → PASS**
 
 **Signature:**
 ```typescript
@@ -908,7 +908,7 @@ export const computeEngagement = (
 - Top engaged: top 5 per channel, minimum 500 views threshold
 - Use `engagementRate` and `median` from utils.ts
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/lib/youtube/engagement.ts src/__tests__/lib/youtube/engagement.test.ts
@@ -923,7 +923,7 @@ git commit -m "feat: implement engagement computation (overall, monthly, by dura
 - Create: `src/lib/youtube/categories.ts`
 - Test: `src/__tests__/lib/youtube/categories.test.ts`
 
-- [ ] **Step 1: Write tests**
+- [x] **Step 1: Write tests**
 
 ```typescript
 import { describe, it, expect } from "vitest"
@@ -992,7 +992,7 @@ describe("computeCategories", () => {
 })
 ```
 
-- [ ] **Step 2: Run test → FAIL, implement, run test → PASS**
+- [x] **Step 2: Run test → FAIL, implement, run test → PASS**
 
 **Signatures:**
 ```typescript
@@ -1009,7 +1009,7 @@ export const computeCategories = (
 - `computeCategories` groups by category per channel, computes videoCount, totalViews, avgViews, engagementRate, topVideo
 - Finance-only for V1 (brainstorm decision #1)
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/lib/youtube/categories.ts src/__tests__/lib/youtube/categories.test.ts
@@ -1024,7 +1024,7 @@ git commit -m "feat: implement category classification (finance keyword-based, V
 - Create: `src/lib/youtube/distribution.ts`
 - Test: `src/__tests__/lib/youtube/distribution.test.ts`
 
-- [ ] **Step 1: Write tests**
+- [x] **Step 1: Write tests**
 
 ```typescript
 import { describe, it, expect } from "vitest"
@@ -1081,7 +1081,7 @@ describe("computeDistribution", () => {
 })
 ```
 
-- [ ] **Step 2: Run test → FAIL, implement, run test → PASS**
+- [x] **Step 2: Run test → FAIL, implement, run test → PASS**
 
 **Signature:**
 ```typescript
@@ -1097,7 +1097,7 @@ export const computeDistribution = (
 - `top10PctShare` = % of total views from top 10% of videos
 - Viral thresholds: gte1k, gte10k, gte100k, gte1m — count, total videos, percentage
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/lib/youtube/distribution.ts src/__tests__/lib/youtube/distribution.test.ts
@@ -1112,7 +1112,7 @@ git commit -m "feat: implement distribution & virality metrics (Gini, percentile
 - Create: `src/lib/youtube/patterns.ts`
 - Test: `src/__tests__/lib/youtube/patterns.test.ts`
 
-- [ ] **Step 1: Write tests**
+- [x] **Step 1: Write tests**
 
 ```typescript
 import { describe, it, expect } from "vitest"
@@ -1165,7 +1165,7 @@ describe("computePostingPatterns", () => {
 })
 ```
 
-- [ ] **Step 2: Run test → FAIL, implement, run test → PASS**
+- [x] **Step 2: Run test → FAIL, implement, run test → PASS**
 
 **Signature:**
 ```typescript
@@ -1181,7 +1181,7 @@ export const computePostingPatterns = (
 - Hour of day: extract UTC hour from `publishedAt`. Only include hours that have videos.
 - Duration buckets: same 7 buckets as engagement module
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/lib/youtube/patterns.ts src/__tests__/lib/youtube/patterns.test.ts
@@ -1196,7 +1196,7 @@ git commit -m "feat: implement posting patterns (upload frequency, day/hour perf
 - Create: `src/lib/youtube/titles.ts`
 - Test: `src/__tests__/lib/youtube/titles.test.ts`
 
-- [ ] **Step 1: Write tests**
+- [x] **Step 1: Write tests**
 
 ```typescript
 import { describe, it, expect } from "vitest"
@@ -1253,7 +1253,7 @@ describe("computeTitleAnalysis", () => {
 })
 ```
 
-- [ ] **Step 2: Run test → FAIL, implement, run test → PASS**
+- [x] **Step 2: Run test → FAIL, implement, run test → PASS**
 
 **Signature:**
 ```typescript
@@ -1270,7 +1270,7 @@ export const computeTitleAnalysis = (
 - Average views computed separately for videos with and without each pattern
 - Top 15 tags per channel from video `tags[]` arrays, merged and counted, sorted descending
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/lib/youtube/titles.ts src/__tests__/lib/youtube/titles.test.ts
@@ -1285,7 +1285,7 @@ git commit -m "feat: implement title & SEO analysis (question, emoji, number det
 - Create: `src/lib/youtube/growth.ts`
 - Test: `src/__tests__/lib/youtube/growth.test.ts`
 
-- [ ] **Step 1: Write tests**
+- [x] **Step 1: Write tests**
 
 ```typescript
 import { describe, it, expect } from "vitest"
@@ -1352,7 +1352,7 @@ describe("computeGrowth", () => {
 })
 ```
 
-- [ ] **Step 2: Run test → FAIL, implement, run test → PASS**
+- [x] **Step 2: Run test → FAIL, implement, run test → PASS**
 
 **Signature:**
 ```typescript
@@ -1371,7 +1371,7 @@ export const computeGrowth = (
 - `referenceDate` parameter for deterministic output (brainstorm decision #12) — use for any "relative to now" computation
 - No `new Date()` calls inside the function
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/lib/youtube/growth.ts src/__tests__/lib/youtube/growth.test.ts
@@ -1390,7 +1390,7 @@ git commit -m "feat: implement growth trajectory (monthly aggregation, MoM chang
 - Create: `src/lib/youtube/verdict.ts`
 - Test: `src/__tests__/lib/youtube/verdict.test.ts`
 
-- [ ] **Step 1: Write tests**
+- [x] **Step 1: Write tests**
 
 ```typescript
 import { describe, it, expect } from "vitest"
@@ -1523,7 +1523,7 @@ describe("computeVerdict", () => {
 })
 ```
 
-- [ ] **Step 2: Run test → FAIL, implement, run test → PASS**
+- [x] **Step 2: Run test → FAIL, implement, run test → PASS**
 
 **Signature:**
 ```typescript
@@ -1551,7 +1551,7 @@ export const computeVerdict = (
 - Now receives `categories` (for Content-Product Fit, Long-term Defensibility) and `subscriberEfficiency` (for Subscriber Efficiency dimension)
 - See spec Section 8.6 for dimension → data source mapping
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/lib/youtube/verdict.ts src/__tests__/lib/youtube/verdict.test.ts
@@ -1566,7 +1566,7 @@ git commit -m "feat: implement head-to-head verdict (15 dimensions, threshold-ba
 - Create: `src/lib/youtube/summary.ts`
 - Test: `src/__tests__/lib/youtube/summary.test.ts`
 
-- [ ] **Step 1: Write tests**
+- [x] **Step 1: Write tests**
 
 ```typescript
 import { describe, it, expect } from "vitest"
@@ -1612,7 +1612,7 @@ describe("generateSummary", () => {
 })
 ```
 
-- [ ] **Step 2: Run test → FAIL, implement, run test → PASS**
+- [x] **Step 2: Run test → FAIL, implement, run test → PASS**
 
 **Signature:**
 ```typescript
@@ -1634,7 +1634,7 @@ export const generateSummary = (
 - Reference engagement rates, distribution shape, freshness trends, scale
 - Handle 2-4 channels (not just 2)
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/lib/youtube/summary.ts src/__tests__/lib/youtube/summary.test.ts
@@ -1651,7 +1651,7 @@ git commit -m "feat: implement template-based executive summary generation"
 - Create: `src/lib/youtube/metrics.ts`
 - Test: `src/__tests__/lib/youtube/metrics.test.ts`
 
-- [ ] **Step 1: Write integration test**
+- [x] **Step 1: Write integration test**
 
 ```typescript
 import { describe, it, expect } from "vitest"
@@ -1744,8 +1744,8 @@ describe("computeReport", () => {
 })
 ```
 
-- [ ] **Step 2: Run test → FAIL**
-- [ ] **Step 3: Implement orchestrator**
+- [x] **Step 2: Run test → FAIL**
+- [x] **Step 3: Implement orchestrator**
 
 **Signature:**
 ```typescript
@@ -1772,8 +1772,8 @@ export const computeReport = (
 - `generateSummary` now receives `overview` and `growth` in addition to engagement, distribution, contentFreshness
 - No `new Date()` anywhere except the default for referenceDate
 
-- [ ] **Step 4: Run test → verify PASS**
-- [ ] **Step 5: Commit**
+- [x] **Step 4: Run test → verify PASS**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/youtube/metrics.ts src/__tests__/lib/youtube/metrics.test.ts
@@ -1786,7 +1786,7 @@ git commit -m "feat: implement metrics orchestrator — assembles full ComputedR
 
 ### Task 6.1: Run full test suite
 
-- [ ] **Step 1: Run all tests**
+- [x] **Step 1: Run all tests**
 
 ```bash
 pnpm test
@@ -1794,7 +1794,7 @@ pnpm test
 
 Expected: All tests pass (40+ tests across types, utils, client, 8 computation modules, orchestrator).
 
-- [ ] **Step 2: Type check**
+- [x] **Step 2: Type check**
 
 ```bash
 pnpm exec tsc --noEmit
@@ -1802,7 +1802,7 @@ pnpm exec tsc --noEmit
 
 Expected: No TypeScript errors.
 
-- [ ] **Step 3: Build**
+- [x] **Step 3: Build**
 
 ```bash
 pnpm build
@@ -1810,7 +1810,7 @@ pnpm build
 
 Expected: Build succeeds.
 
-- [ ] **Step 4: Commit any remaining changes and push**
+- [x] **Step 4: Commit any remaining changes and push**
 
 ```bash
 git push -u origin feature/plan-2-metrics-engine
@@ -1820,18 +1820,18 @@ git push -u origin feature/plan-2-metrics-engine
 
 ## Verification Checklist
 
-- [ ] All tests pass (`pnpm test`)
-- [ ] No TypeScript errors (`pnpm exec tsc --noEmit`)
-- [ ] `pnpm build` succeeds
-- [ ] Every computation module is a pure function (no side effects, no fetch calls, no Date.now)
-- [ ] Every module has independent tests using shared fixtures + inline edge cases
-- [ ] Types file has zero implementation imports (pure interfaces + Zod schemas)
-- [ ] Metrics orchestrator produces a complete ComputedReport with all 13 sections
-- [ ] Verdict has exactly 15 dimensions
-- [ ] `referenceDate` produces deterministic output
-- [ ] `forHandle` used for channel resolution (not Search API)
-- [ ] Zod validates YouTube API responses at the client boundary
-- [ ] `since` parameter controls time-windowed video fetching
+- [x] All tests pass (`pnpm test`)
+- [x] No TypeScript errors (`pnpm exec tsc --noEmit`)
+- [x] `pnpm build` succeeds
+- [x] Every computation module is a pure function (no side effects, no fetch calls, no Date.now)
+- [x] Every module has independent tests using shared fixtures + inline edge cases
+- [x] Types file has zero implementation imports (pure interfaces + Zod schemas)
+- [x] Metrics orchestrator produces a complete ComputedReport with all 13 sections
+- [x] Verdict has exactly 15 dimensions
+- [x] `referenceDate` produces deterministic output
+- [x] `forHandle` used for channel resolution (not Search API)
+- [x] Zod validates YouTube API responses at the client boundary
+- [x] `since` parameter controls time-windowed video fetching
 
 ## Known Limitations (address in future plans)
 
