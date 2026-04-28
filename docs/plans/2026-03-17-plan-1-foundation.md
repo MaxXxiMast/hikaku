@@ -8,7 +8,7 @@
 
 **Tech Stack:** Next.js 15, Tailwind CSS v4, shadcn/ui, Convex, Upstash Redis (@upstash/redis), PostHog (posthog-js), React Hook Form, Zod, next-themes, Recharts
 
-**Spec:** `docs/specs/2026-03-16-hikaku-v1-design.md`
+**Spec:** `docs/specs/hikaku-v1-design.md`
 **ADRs:** `docs/adrs/001` through `013`
 
 **Core Principles (non-negotiable):**

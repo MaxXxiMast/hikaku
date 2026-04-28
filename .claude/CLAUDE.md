@@ -90,7 +90,18 @@ src/
 │   ├── history.ts          # Search history
 │   └── crons.ts            # Scheduled jobs (72h purge, 6h link expiry)
 ├── lib/
-│   ├── youtube/            # YouTube API client + metrics engine
+│   ├── youtube/
+│   │   ├── types.ts        # Zod API schemas + all TypeScript interfaces (RawVideo, RawChannel, ComputedReport, DURATION_BUCKETS)
+│   │   ├── client.ts       # YouTube Data API v3 client (forHandle resolution, paginated fetch)
+│   │   ├── engagement.ts   # Engagement rates (overall, monthly, by duration, top engaged)
+│   │   ├── categories.ts   # Finance keyword classification (12 categories)
+│   │   ├── distribution.ts # Gini coefficient, percentiles, viral thresholds
+│   │   ├── patterns.ts     # Upload frequency, day/hour heatmaps, duration buckets
+│   │   ├── titles.ts       # Question/emoji/number detection, top tags
+│   │   ├── growth.ts       # Monthly aggregation, MoM change, lifecycle phases
+│   │   ├── verdict.ts      # Head-to-head verdict (15 dimensions, threshold-based ties)
+│   │   ├── summary.ts      # Template-based executive summary generation
+│   │   └── metrics.ts      # Orchestrator — assembles full ComputedReport from all modules
 │   ├── redis.ts            # Upstash client (hot cache + rate limiting)
 │   ├── analytics.ts        # Typed PostHog wrapper (ADD)
 │   └── report.ts           # Report orchestration logic
