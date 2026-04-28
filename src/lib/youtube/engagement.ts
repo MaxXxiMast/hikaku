@@ -43,6 +43,27 @@ export const computeEngagement = (
     views: m.views,
   }))
 
+  // Overlapping monthly — only months where ALL channels have at least 1 video
+  const monthsPerChannel = new Map<string, Set<string>>()
+  for (const ch of channels) {
+    const months = new Set<string>()
+    for (const v of videosByChannel[ch.id] ?? []) {
+      months.add(v.publishedAt.slice(0, 7))
+    }
+    monthsPerChannel.set(ch.id, months)
+  }
+  const allChannelMonthSets = Array.from(monthsPerChannel.values())
+  const overlappingMonthSet = allChannelMonthSets.length > 0
+    ? allChannelMonthSets.reduce((intersection, monthSet) => {
+        const result = new Set<string>()
+        for (const m of intersection) {
+          if (monthSet.has(m)) result.add(m)
+        }
+        return result
+      })
+    : new Set<string>()
+  const overlappingMonthly = monthly.filter((m) => overlappingMonthSet.has(m.month))
+
   // Duration bucket engagement
   type BucketAcc = { likes: number; comments: number; views: number; count: number; channelId: string }
   const bucketMap = new Map<string, BucketAcc>()
@@ -77,5 +98,5 @@ export const computeEngagement = (
       .slice(0, 5)
   })
 
-  return { perChannel, monthly, byDuration, topEngaged }
+  return { perChannel, monthly, overlappingMonthly, byDuration, topEngaged }
 }
