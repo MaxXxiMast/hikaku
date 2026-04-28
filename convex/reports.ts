@@ -1,5 +1,6 @@
 import { v } from "convex/values"
 import { mutation, query } from "./_generated/server"
+import { internalMutation } from "./_generated/server"
 
 export const create = mutation({
   args: {
@@ -43,7 +44,13 @@ export const getPublic = query({
     if (!report.isPublic || Date.now() > report.publicExpiresAt) {
       return { expired: true, channelHandles: report.channelHandles }
     }
-    return report
+    return {
+      computed: report.computed,
+      channelHandles: report.channelHandles,
+      generatedAt: report.generatedAt,
+      isPublic: report.isPublic,
+      publicExpiresAt: report.publicExpiresAt,
+    }
   },
 })
 
@@ -58,6 +65,41 @@ export const getComputed = query({
       generatedAt: report.generatedAt,
       isPublic: report.isPublic,
       publicExpiresAt: report.publicExpiresAt,
+    }
+  },
+})
+
+export const expirePublicLinks = internalMutation({
+  handler: async (ctx) => {
+    const now = Date.now()
+    const reports = await ctx.db
+      .query("reports")
+      .withIndex("by_public", (q) => q.eq("isPublic", true))
+      .collect()
+
+    for (const report of reports) {
+      if (report.publicExpiresAt < now) {
+        await ctx.db.patch(report._id, { isPublic: false })
+      }
+    }
+  },
+})
+
+export const purgeExpiredData = internalMutation({
+  handler: async (ctx) => {
+    const now = Date.now()
+    const reports = await ctx.db
+      .query("reports")
+      .withIndex("by_purge")
+      .collect()
+
+    for (const report of reports) {
+      if (report.purgeAfter && report.purgeAfter < now) {
+        await ctx.db.patch(report._id, {
+          raw: { channels: [], videos: [] },
+          computed: null,
+        })
+      }
     }
   },
 })

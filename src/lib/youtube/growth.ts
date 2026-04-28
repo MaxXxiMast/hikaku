@@ -33,7 +33,7 @@ const phaseCharacter = (name: string): string => {
 export const computeGrowth = (
   channels: RawChannel[],
   videosByChannel: Record<string, RawVideo[]>,
-  _referenceDate: Date
+  referenceDate: Date
 ): GrowthData => {
   const monthlyComparison: MonthlyData[] = []
 
@@ -103,5 +103,37 @@ export const computeGrowth = (
     return { channelId: ch.id, phases }
   })
 
-  return { monthlyComparison, lifecyclePhases }
+  // First-N-Months comparison — normalize by channel age
+  const channelAges = channels.map((ch) => {
+    const joinDate = new Date(ch.joinedDate)
+    const ageMonths = (referenceDate.getFullYear() - joinDate.getFullYear()) * 12
+      + (referenceDate.getMonth() - joinDate.getMonth())
+    return Math.max(1, ageMonths)
+  })
+  const n = Math.min(...channelAges)
+
+  const firstNMonths = {
+    n,
+    perChannel: channels.map((ch) => {
+      const joinDate = new Date(ch.joinedDate)
+      const joinMonth = `${joinDate.getFullYear()}-${String(joinDate.getMonth() + 1).padStart(2, "0")}`
+
+      const chMonths = monthlyComparison
+        .filter((m) => m.channelId === ch.id)
+        .sort((a, b) => a.month.localeCompare(b.month))
+
+      const firstN = chMonths.filter((m) => m.month >= joinMonth).slice(0, n)
+      const totalViews = firstN.reduce((s, m) => s + m.totalViews, 0)
+      const totalVideos = firstN.reduce((s, m) => s + m.videoCount, 0)
+
+      return {
+        channelId: ch.id,
+        months: firstN,
+        totalViews,
+        avgViewsPerVideo: totalVideos > 0 ? totalViews / totalVideos : 0,
+      }
+    }),
+  }
+
+  return { monthlyComparison, lifecyclePhases, firstNMonths }
 }

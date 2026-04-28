@@ -68,6 +68,17 @@ describe("computeReport", () => {
     expect(report.executiveSummary.length).toBeGreaterThan(50)
   })
 
+  it("engagement has overlappingMonthly data", () => {
+    expect(report.engagement.overlappingMonthly).toBeDefined()
+    expect(Array.isArray(report.engagement.overlappingMonthly)).toBe(true)
+  })
+
+  it("growth has firstNMonths data", () => {
+    expect(report.growth.firstNMonths).toBeDefined()
+    expect(report.growth.firstNMonths.n).toBeGreaterThan(0)
+    expect(report.growth.firstNMonths.perChannel).toHaveLength(2)
+  })
+
   it("is deterministic with same referenceDate", () => {
     const report2 = computeReport(channels, videosByChannel, { referenceDate: REFERENCE_DATE })
     expect(report2.meta.generatedAt).toBe(report.meta.generatedAt)
