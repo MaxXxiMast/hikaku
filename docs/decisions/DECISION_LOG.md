@@ -12,7 +12,7 @@ All architectural and product decisions with rationale. Each major decision has 
 | 4 | Design System | Kintsugi Dark + Washi Gold V2 Light (Wabi-sabi) | [ADR-003](../adrs/003-design-system-kintsugi-wabi-sabi.md) | 2026-03-16 |
 | 5 | Data Architecture | Raw + Computed storage in Redis | [ADR-004](../adrs/004-data-architecture-raw-plus-computed.md) | 2026-03-16 |
 | 6 | API Key Strategy | Hybrid (fallback to ours, user can provide) | [ADR-005](../adrs/005-api-key-strategy-hybrid.md) | 2026-03-16 |
-| 7 | Sharing Model | Cached URL (24h) + PDF download + re-gen CTA | [ADR-006](../adrs/006-sharing-and-expiry-model.md) | 2026-03-16 |
+| 7 | Sharing Model | Cached URL (6h, updated by #22) + share button + re-gen CTA (PDF deferred to Plan 4) | [ADR-006](../adrs/006-sharing-and-expiry-model.md) | 2026-03-16 |
 | 8 | Component Library | shadcn/ui with Kintsugi theme override | [ADR-007](../adrs/007-component-library-shadcn.md) | 2026-03-16 |
 | 9 | Loading UX | Phased reveal + engaging loading screen with facts/tips | [ADR-008](../adrs/008-loading-and-ux-strategy.md) | 2026-03-16 |
 | 10 | Responsive | Mobile-first, enhanced desktop | [ADR-009](../adrs/009-responsive-mobile-first.md) | 2026-03-16 |
@@ -37,6 +37,11 @@ All architectural and product decisions with rationale. Each major decision has 
 | 29 | Raw Data Shape | Fat — store full YouTube API response, not just projected fields. Enables future analysis (FS-1–FS-6). Supersedes ADR-004 field lists. | [ADR-014](../adrs/014-fat-raw-data-storage.md) | 2026-04-05 |
 | 30 | Channel Resolution | forHandle on Channels endpoint (1 quota unit) instead of Search API (100 units). 10x daily capacity. Supersedes ADR-005 quota numbers. | [ADR-015](../adrs/015-channel-resolution-forhandle.md) | 2026-04-05 |
 | 31 | Channel API Parts | 5 parts: snippet,statistics,contentDetails,brandingSettings,topicDetails. brandingSettings for channel keywords, topicDetails for topic categories (supports ADR-014 fat storage). Flat 1 unit cost regardless of parts. | [ADR-015](../adrs/015-channel-resolution-forhandle.md) | 2026-04-05 |
+| 32 | Comparison API Transport | Simple POST → JSON response (no SSE). SSE deferred to post-V1. Supersedes ADR-008 SSE requirement. | ADR-008 updated | 2026-04-28 |
+| 33 | V1 Channel Count (UI) | 2-channel locked for V1. API schema accepts 2 (`.max(2)`). Computation engine supports 2-4. | — | 2026-04-28 |
+| 34 | Time Range UX | No `since` filter UI. Fetch all videos; section-level windowing handles time ranges internally (overlapping period, first-N-months, last 30d). | — | 2026-04-28 |
+| 35 | PDF Export Timing | Deferred to Plan 4. V1 ships share button only. | — | 2026-04-28 |
+| 36 | Loading UX (Plan 3) | Landing overlay with rotating content cards (2-3s cycle) + client-side progress simulation → `router.push('/r/{id}')` with sessionStorage data transfer → phased CSS reveal. No `/compare` page. | ADR-008 updated | 2026-04-28 |
 
 ## Rejected Alternatives
 
