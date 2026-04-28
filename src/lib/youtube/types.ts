@@ -241,6 +241,7 @@ export interface EngagementData {
     medianPerVideoRate: number
   }[]
   monthly: { month: string; channelId: string; engagementRate: number; views: number }[]
+  overlappingMonthly: { month: string; channelId: string; engagementRate: number; views: number }[]
   byDuration: { bucket: string; channelId: string; count: number; avgViews: number; engagementRate: number }[]
   topEngaged: { channelId: string; title: string; views: number; engagementRate: number }[]
 }
@@ -301,6 +302,15 @@ export interface GrowthData {
     channelId: string
     phases: { name: string; period: string; avgMonthlyViews: number; character: string }[]
   }[]
+  firstNMonths: {
+    n: number
+    perChannel: {
+      channelId: string
+      months: MonthlyData[]
+      totalViews: number
+      avgViewsPerVideo: number
+    }[]
+  }
 }
 
 export interface SubscriberEfficiencyData {
