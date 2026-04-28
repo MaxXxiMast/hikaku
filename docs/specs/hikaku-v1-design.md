@@ -8,6 +8,7 @@
 - 2026-03-16: Initial draft — product overview, tech stack, design system, pages, report sections, API routes, data types
 - 2026-03-17: Convex backend (ADR-011), analytics-driven development (ADR-012), 6h link expiry, data lifecycle, frontend state (ADR-013)
 - 2026-04-05: Plan 2 metrics engine — fat raw data (ADR-014), forHandle resolution (ADR-015), 15 verdict dimensions with scoring, all sub-type definitions, computation module specs (8.5-8.10), `since` parameter, Zod API validation
+- 2026-04-28: Plan 3 pages + report UI — simple POST (no SSE), 2-channel locked, section-level windowing (no `since` UI), loading UX (rotating content → skeleton → phased reveal), hybrid layout, chart types, PDF deferred to Plan 4, OG images included
 
 ---
 
@@ -152,62 +153,61 @@ Beauty in imperfection, transience, simplicity. Applied to UI:
 
 ### 4.1 Landing Page — `/`
 
-**Purpose**: Input 2-4 YouTube channel handles and initiate comparison.
+**Purpose**: Input 2 YouTube channel handles and initiate comparison.
 
 **Elements**:
 - Logo: 比較 (Crimson Pro) + HIKAKU (Zen Kaku Gothic)
 - Tagline: "Compare · Understand · Decide"
-- Input fields: 2 channel handle inputs by default, "Add channel" button (max 4)
+- Input fields: exactly 2 channel handle inputs (V1 — locked at 2 channels, expandable post-V1)
 - "Compare" button (gold accent)
 - Optional: "Use your own API key" expandable section
 - Theme toggle (sun/moon)
 - Footer: minimal — "Built with wabi-sabi" + GitHub link
 
 **Behavior**:
-- Channel handles validated on blur (@ prefix auto-added)
-- Minimum 2 channels required to submit
-- On submit: client-side navigation to `/compare?channels=@a,@b`. The compare page opens an SSE connection to `/api/compare` on mount. No form POST redirect — the URL changes via `router.push`, then the page consumes the stream.
+- Channel handles validated on blur (@ prefix auto-added, trimmed, max 30 chars)
+- Both channels required to submit, duplicates rejected
+- Supports `?ch=@handleA,@handleB` query params to pre-fill inputs (used by expired page re-generate CTA)
+- Optional API key: expandable disclosure with single text input, placeholder "AIza...", validated format (`/^AIza[0-9A-Za-z_-]{35}$/`), sent as `apiKey` in POST body. No client-side storage.
+- On submit: POST `/api/compare` → full-viewport loading overlay → `router.push('/r/{id}')` on success
+- No SSE, no `/compare` page — simple POST → redirect flow (Plan 3 brainstorm Decision 1)
+
+**Loading Overlay** (full-viewport, on landing page during 10-20s wait):
+1. Rotating content cards (YouTube facts, channel tips, hikaku hints, wabi-sabi quotes — cycling every 2-3s)
+2. Progress text (client-side simulation, not server-driven): "Resolving channels...", "Fetching and computing...", "Building your report..."
+3. On success: store `ComputedReport` in `sessionStorage` under key `hikaku:report:{id}`, then `router.push('/r/{id}')`
+4. On error (4xx/5xx): dismiss overlay, show inline error banner above form with user-friendly message from Section 11. Form remains interactive for retry.
+5. On timeout (>25s): dismiss overlay, show "Comparison timed out. Please try again."
 
 **Responsive**:
 - Mobile: stacked inputs, full-width button
 - Desktop: horizontal input row with inline button
 
-### 4.2 Comparison Page — `/compare?channels=@a,@b`
+### 4.2 Report Page — `/r/[id]` (replaces old 4.2 + 4.3)
 
-**Purpose**: Display the full analysis with phased reveal.
+**Purpose**: Display the full comparison report. Serves both fresh comparisons (redirected from landing) and shared links.
 
-**Loading Experience**:
-1. Progress bar at top of page (gold gradient)
-2. Below progress bar: rotating content panel
-   - YouTube facts, channel tips, Hikaku hints, wabi-sabi quotes, progress updates
-3. Sections slide in as computed (fade-up animation, 300ms ease)
+**No separate `/compare` page** — the landing page handles the loading state, then redirects to `/r/{id}` which is the single report view (Plan 3 brainstorm Decision 1).
 
-**Phased Reveal Order**:
+**Data source**:
+- **From landing page redirect**: reads `ComputedReport` from `sessionStorage` (written by landing page POST handler). No second fetch needed.
+- **From direct/shared link**: SSR from Redis (hot cache) → Convex fallback. If both are slow, page blocks on server until data arrives (no client-side skeleton for SSR visitors).
+
+**Phased Reveal Order** (on first visit, sections fade-in with slide-up — timing tuned during implementation):
 ```
-[0s]   Loading screen with facts
-[~2s]  Channel Overview cards appear
-[~4s]  Executive Summary appears
-[~6s]  MoM Viewership chart appears
-[~8s]  Engagement section appears
-[~10s] Growth + Distribution appear
-[~12s] Posting Patterns + Title/SEO appear
-[~14s] Content Categories + Subscriber Efficiency appear
-[~16s] Freshness + Verdict appear
-[~16s] Share/Download bar slides up
+Phase 1: Executive Summary + Channel Overview cards
+Phase 2: Engagement Deep Dive
+Phase 3: Monthly Viewership + Growth Trajectory
+Phase 4: View Distribution + Production Patterns
+Phase 5: Title/SEO + Categories
+Phase 6: Content Freshness + Subscriber Efficiency
+Phase 7: Head-to-Head Verdict
+Phase 8: Share bar slides up
 ```
 
 **Sticky Elements**:
-- Top: Channel name pills (scrolled past overview, shows which channels)
-- Bottom: Action bar — "Share Report" + "Download PDF" buttons
-
-**Responsive**:
-- Mobile: single column, sections stacked, charts full-width
-- Tablet: 2-column for 2 channels, scrollable for 3-4
-- Desktop: side-by-side cards matching channel count
-
-### 4.3 Report Page — `/r/[id]`
-
-**Purpose**: Shareable report. Same layout as /compare but reads from Convex.
+- Top: Channel name pills (visible when scrolled past overview)
+- Bottom: Action bar — "Share Report" button (PDF deferred to Plan 4)
 
 **Server-Side**:
 - `generateMetadata()` reads Convex for OG tags
@@ -216,25 +216,27 @@ Beauty in imperfection, transience, simplicity. Applied to UI:
 - OG image: dynamic social card via @vercel/og
 
 **Behavior**:
-- If report exists and is public (within 6h): render full report (SSR, hot cache from Redis)
-- If report link expired (>6h): redirect to `/r/[id]/expired?ch=@a,@b`
+- If report exists and is public (within 6h): render full report (SSR, hot cache from Redis → Convex fallback)
+- If report link expired (>6h): redirect to `/r/[id]/expired`
 - If report ID invalid: 404 page
-- If logged-in user's saved report: always accessible regardless of expiry
 
 **Elements**:
-- Same as /compare but with "Report generated X hours ago" timestamp
-- "Expires in Y hours" indicator (gold, counts down) — only for public shared links
-- Share + Download buttons
-- "Save to account" button (V1.5 — hidden in V1, schema fields exist but UI gated behind auth)
+- "Report generated X hours ago" timestamp
+- "Expires in ~Y hours" static label (computed once at SSR, no client-side countdown in V1)
+- Share button (copy URL to clipboard, toast confirmation via Sonner)
 
-### 4.4 Expired Report — `/r/[id]/expired`
+**Responsive**:
+- Mobile: single column, sections stacked, charts full-width
+- Desktop: hybrid layout per section (side-by-side cards, full-width charts/tables)
+
+### 4.3 Expired Report — `/r/[id]/expired`
 
 **Purpose**: Convert expired link visitors into new users.
 
 **Elements**:
 - Message: "This report has expired"
 - Channel list: "Compared: @channelA vs @channelB vs ..." (from URL params)
-- CTA: "Re-generate this comparison" (gold button, links to /compare with pre-filled channels)
+- CTA: "Re-generate this comparison" (gold button, links to `/?ch=@channelA,@channelB` with pre-filled inputs)
 - CTA: "Start a new comparison" (secondary button, links to /)
 - Wabi-sabi quote about impermanence
 
@@ -244,7 +246,7 @@ Beauty in imperfection, transience, simplicity. Applied to UI:
 
 ## 5. Report Sections — Detailed Specification
 
-Each section is an independent React component that receives computed data as props. All sections must handle 2, 3, or 4 channel layouts.
+Each section is an independent React component that receives computed data as props. V1 handles 2-channel layout only (3-4 channel UI deferred post-V1). Channel colors passed as props: A = gold (`#c5a55a`), B = sage (`#8a9a7a`).
 
 ### 5.1 Executive Summary
 
@@ -263,8 +265,8 @@ Each section is an independent React component that receives computed data as pr
 ### 5.3 Month-on-Month Viewership
 
 **Data**: Monthly aggregation — videos published, total views, avg views/video, MoM change %.
-**Display**: Multi-line chart (one line per channel) + data table below.
-**Chart**: Recharts `<LineChart>` with channel colors, gold grid lines, muted axis labels.
+**Display**: Bar chart (one bar group per month, one bar per channel) + data table below.
+**Chart**: Recharts `<BarChart>` — discrete months, bars are clearer than lines. Channel colors, gold grid lines, muted axis labels.
 **Component**: `<MonthlyViewership />`
 
 ### 5.4 Engagement Deep Dive
@@ -289,7 +291,7 @@ Each section is an independent React component that receives computed data as pr
 
 **Data**: Upload frequency, day-of-week performance, hour-of-day performance, duration sweet spot.
 **Display**: Upload consistency metrics, day heatmap, hour heatmap, duration performance table.
-**Chart**: Heatmap using Recharts `<ScatterChart>` or custom grid.
+**Chart**: CSS grid heatmap (styled `<div>` grid with background-color intensity) — Recharts has no native heatmap; custom grid is simpler and more controllable.
 **Component**: `<ProductionPatterns />`
 
 ### 5.8 Title & SEO Analysis
@@ -334,51 +336,46 @@ Each section is an independent React component that receives computed data as pr
 **Input**:
 ```typescript
 {
-  channels: string[]       // 2-4 YouTube handles
+  channels: string[]       // 2 YouTube handles (V1 — API accepts 2-4 for future expansion)
   apiKey?: string          // Optional user-provided YouTube API key
-  since?: string           // ISO 8601 date — time window for video fetching (default: 4 months ago)
 }
 ```
 
-**Process**:
-1. Validate input (2-4 handles, rate limit check via Redis)
-2. Resolve handles to channel data via `forHandle` parameter on Channels endpoint (1 quota unit per channel, see [ADR-015](../adrs/015-channel-resolution-forhandle.md)). Atomic fail — all channels must resolve or comparison fails.
-3. Fetch videos via uploads playlist (YouTube playlistItems + videos APIs), stopping when `publishedAt < since`. Default `since`: 4 months ago. Channel-level all-time stats already fetched in step 2.
-5. Compute all metrics (engagement, categories, distribution, patterns, etc.)
-6. Store raw + computed data in Convex (source of truth)
-7. Cache computed metrics in Redis (hot cache, 4h TTL)
-8. Set report as public with 6h expiry (Convex scheduled job)
-9. If logged in (V1.5): save to user's search history in Convex
-10. Track `comparison_completed` event (PostHog)
-11. Return report ID + computed data
+**Process** (simple POST → JSON response, no SSE):
+1. Validate input (Zod schema from `lib/validations.ts`, rate limit check via Redis)
+2. Resolve all channels via `resolveChannel` (atomic fail — all must resolve or request fails)
+3. Fetch ALL videos per channel via `fetchAllVideos` (no `since` filter — section-level windowing handles time ranges)
+4. Compute full report via `computeReport(channels, videosByChannel, { referenceDate: new Date() })`
+5. Store raw + computed in Convex → returns Convex document ID (used as `reportId`)
+6. Cache computed in Redis (4h TTL) — graceful: log failure but don't block response
+7. Track `comparison_completed` event (PostHog)
+8. Return `{ reportId, data }` — `reportId` is the Convex document ID
 
 **Output**:
 ```typescript
 {
-  reportId: string         // nanoid for shareable URL
+  reportId: string         // Convex document ID for shareable URL
   data: ComputedReport     // Full computed metrics
 }
 ```
 
-**Streaming**: Use Server-Sent Events (SSE) to stream progress updates:
-```
-event: progress
-data: { stage: "resolving", message: "Resolving channel handles..." }
+**Error handling** (atomic on compute, graceful on storage):
+- Channel not found → 404 with handle name
+- Rate limited → 429 with retry-after header
+- YouTube API quota exhausted → 503 with user-friendly message
+- Invalid input → 400 with Zod validation errors
+- Convex/Redis write failure → log error, still return report to client
 
-event: progress
-data: { stage: "fetching", message: "Fetching 239 videos for Wint Wealth..." }
+**Rate Limiting**: 10 requests per IP per hour (existing `checkRateLimit` in `lib/rate-limit.ts`). Use Vercel's `x-real-ip` header for IP extraction (not `X-Forwarded-For`).
 
-event: section
-data: { section: "overview", data: { ... } }
+**CSRF Protection**: Verify `Origin` header matches `hikaku.app` on POST requests. Reject cross-origin requests.
 
-event: section
-data: { section: "engagement", data: { ... } }
+**Input Validation** (in `lib/validations.ts`):
+- Handle: `.trim().max(30)`, reject duplicates via `.refine()`
+- API key: validate format `/^AIza[0-9A-Za-z_-]{35}$/` if provided
+- Channels: `.min(2).max(2)` for V1 (change to `.max(4)` when UI expands)
 
-event: complete
-data: { reportId: "abc123" }
-```
-
-**Rate Limiting**: 10 requests per IP per hour.
+**No SSE** — total wait is 10-20s. Loading UX on the landing page covers this. SSE deferred to post-V1.
 
 ### 6.2 GET /api/report/[id]
 
@@ -391,12 +388,19 @@ data: { reportId: "abc123" }
 4. If report link expired: return 404 with channel handles (from URL params or Convex metadata)
 5. Track `report_viewed` event (PostHog)
 
-**Output**:
+**Output** (return only what the client needs — never expose raw YouTube API data):
 ```typescript
 {
   found: boolean
-  data?: StoredReport       // raw + computed + meta
-  channelHandles?: string[] // For re-generation
+  data?: {
+    computed: ComputedReport
+    channelHandles: string[]
+    generatedAt: number
+    isPublic: boolean
+    publicExpiresAt: number
+  }
+  expired?: boolean           // true if report exists but link expired
+  channelHandles?: string[]   // For re-generation on expired page
 }
 ```
 
@@ -777,7 +781,23 @@ Inline (no separate module):
 
 Accepts `referenceDate: Date` parameter for deterministic date-dependent computation (contentFreshness, growth). No `new Date()` calls inside — caller passes the reference date.
 
-### 8.10 API Response Validation
+### 8.10 Section-Level Windowing
+
+The API route fetches ALL videos per channel (no `since` filter). Each computation module internally selects the appropriate time window for its analysis:
+
+- **All-time**: engagement overall, distribution, patterns, titles, categories, subscriber efficiency, overview
+- **Overlapping period**: engagement monthly — auto-detect months where ALL channels were active, compare only those months
+- **Age-normalized (First-N-Months)**: growth — use `min(channel ages)`, slice each channel's first N months for fair comparison
+- **Last 30 days**: content freshness — relative to `referenceDate`
+- **Mixed**: verdict — each dimension uses the window from its source section
+
+This makes the platform a "no-brainer" — user enters channels, gets all analysis types automatically. No time range selector needed.
+
+**Enrichments to existing Plan 2 modules**:
+- `computeEngagement` → add `overlappingMonthly` sub-result: filter monthly data to months where all channels have videos
+- `computeGrowth` → add `firstNMonths` sub-result: slice each channel's data to `min(channel ages)` months from their respective start dates
+
+### 8.11 API Response Validation
 
 YouTube API responses are validated through Zod schemas at the `client.ts` boundary before normalization into `RawVideo`/`RawChannel` interfaces. This replaces ad-hoc `|| 0` fallbacks with a declared schema. See [ADR-014](../adrs/014-fat-raw-data-storage.md).
 
@@ -785,7 +805,7 @@ YouTube API responses are validated through Zod schemas at the `client.ts` bound
 
 ## 9. Loading & UX
 
-Full details in [ADR-008](../adrs/008-loading-and-ux-strategy.md).
+ADR-008 describes the loading strategy. Note: ADR-008 predates the Plan 3 no-SSE decision — the phased reveal in Section 4.2 is now canonical. ADR-008's SSE-driven timeline is superseded; the loading content pool and rotating facts strategy still applies.
 
 ### 9.1 Loading Content Pool
 
@@ -806,9 +826,7 @@ const LOADING_CONTENT = {
     "Thumbnails with faces get 38% higher click-through rates",
   ],
   hikakuHints: [
-    "You can compare up to 4 channels at once",
     "Reports are shareable for 6 hours via unique links",
-    "Download your report as PDF for permanent access",
     "Provide your own YouTube API key for unlimited comparisons",
   ],
   wabiSabiQuotes: [
@@ -820,16 +838,15 @@ const LOADING_CONTENT = {
 }
 ```
 
-### 9.2 Progress Stages
+### 9.2 Progress Stages (Client-Side Simulation)
 
-| Stage | Message | Duration |
+Progress stages are client-side simulations driven by `setTimeout`, not server-sent events. The server does not emit stage updates — stages advance on a timer based on typical durations.
+
+| Stage | Message | Simulated delay |
 |-------|---------|----------|
-| resolving | "Resolving channel handles..." | ~1-2s |
-| fetching | "Fetching {n} videos for {channel}..." | ~2-8s per channel |
-| computing | "Computing engagement metrics..." | ~1s |
-| categorizing | "Analyzing content categories..." | ~1s |
-| patterns | "Detecting posting patterns..." | ~1s |
-| finalizing | "Generating report..." | ~1s |
+| resolving | "Resolving channels..." | 0-3s |
+| fetching | "Fetching and computing..." | 3-12s |
+| building | "Building your report..." | 12s+ |
 
 ---
 
@@ -837,10 +854,11 @@ const LOADING_CONTENT = {
 
 ### 10.1 Shareable URL
 
-Format: `hikaku.app/r/{nanoid}?ch=@channelA,@channelB`
+Format: `hikaku.app/r/{convexId}?ch=@channelA,@channelB`
 
-- `nanoid` (8 chars) for short, clean URLs
+- `convexId` is the Convex document ID returned by `reports.create` mutation
 - `ch` param preserves channel handles for re-generation after expiry
+- Note: Convex IDs are not user-guessable in practice (base-32 encoded with randomness). If enumeration becomes a concern post-V1, migrate to a separate `nanoid` publicId field with a `by_publicId` index.
 
 ### 10.2 OG Meta Tags (SSR)
 
@@ -860,13 +878,9 @@ Generated via `@vercel/og` at `/r/[id]/opengraph-image.tsx`:
 - Hikaku logo
 - 1200x630px
 
-### 10.4 PDF Export
+### 10.4 PDF Export — Deferred to Plan 4
 
-Client-side generation:
-1. User clicks "Download PDF"
-2. `html2canvas` captures the report DOM
-3. `jsPDF` assembles pages
-4. Downloaded as `hikaku-report-{channels}-{date}.pdf`
+Client-side generation via `html2canvas + jsPDF`. Not in V1 scope. Share URL covers the core sharing need. Will be added as a self-contained feature in Plan 4 without modifying existing components.
 
 ---
 
@@ -890,14 +904,14 @@ Client-side generation:
 | Breakpoint | Width | Layout |
 |-----------|-------|--------|
 | Mobile | < 640px | Single column, stacked cards, full-width charts |
-| Tablet | 640-1024px | 2-column for 2 channels, horizontal scroll for 3-4 |
-| Desktop | > 1024px | Side-by-side cards matching channel count (2-4 columns) |
+| Tablet | 640-1024px | 2-column layout for 2 channels |
+| Desktop | > 1024px | Side-by-side cards, 2 columns (V1 — expand post-V1 for 3-4) |
 
 ### Layout Adaptation
 
 | Component | Mobile | Desktop |
 |-----------|--------|---------|
-| Channel Overview | Stacked cards with swipe | Side-by-side cards |
+| Channel Overview | Stacked cards | Side-by-side cards |
 | Data Tables | Horizontal scroll | Full table |
 | Charts | Full width, aspect ratio maintained | Flexible width |
 | Verdict Scorecard | Stacked rows | Full comparison table |
@@ -1026,21 +1040,19 @@ hikaku/
 ├── src/
 │   ├── app/
 │   │   ├── layout.tsx           # Root layout, theme provider, fonts, ConvexProvider
-│   │   ├── page.tsx             # Landing page
-│   │   ├── compare/
-│   │   │   └── page.tsx         # Live comparison view
+│   │   ├── page.tsx             # Landing page (form + loading overlay)
 │   │   ├── r/
-│   │   │   ├── [id]/
-│   │   │   │   ├── page.tsx     # Report view (SSR from Convex/Redis)
-│   │   │   │   ├── opengraph-image.tsx  # Dynamic OG image
-│   │   │   │   └── expired/
-│   │   │   │       └── page.tsx # Expired report + re-gen CTA
+│   │   │   └── [id]/
+│   │   │       ├── page.tsx     # Report view (SSR from Convex/Redis)
+│   │   │       ├── opengraph-image.tsx  # Dynamic OG image (@vercel/og)
+│   │   │       └── expired/
+│   │   │           └── page.tsx # Expired report + re-gen CTA
 │   │   └── api/
 │   │       ├── compare/
-│   │       │   └── route.ts     # YouTube API proxy + compute + SSE
+│   │       │   └── route.ts     # POST: validate → fetch → compute → store → return
 │   │       └── report/
 │   │           └── [id]/
-│   │               └── route.ts # Fetch report (Redis cache → Convex fallback)
+│   │               └── route.ts # GET: Redis cache → Convex fallback
 │   ├── lib/
 │   │   ├── youtube/
 │   │   │   ├── client.ts        # YouTube Data API v3 client
@@ -1086,7 +1098,6 @@ hikaku/
 │   │       ├── LoadingScreen.tsx  # Facts/tips/progress
 │   │       └── ProgressBar.tsx    # Gold gradient progress bar
 │   ├── hooks/
-│   │   ├── useComparison.ts     # SSE stream consumer
 │   │   └── useTheme.ts          # Theme toggle logic
 │   ├── styles/
 │   │   ├── tokens.css           # Design tokens (both themes)

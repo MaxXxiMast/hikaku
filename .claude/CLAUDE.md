@@ -2,7 +2,7 @@
 
 ## What Is This
 
-Hikaku is a YouTube channel comparison platform that lets users compare up to 4 YouTube channels side-by-side with deep analytics. Built with a Wabi-sabi (侘寂) Japanese aesthetic — finding beauty in imperfection, transience, and simplicity.
+Hikaku is a YouTube channel comparison platform that lets users compare 2 YouTube channels side-by-side with deep analytics (V1 — expandable to 4 post-V1). Built with a Wabi-sabi (侘寂) Japanese aesthetic — finding beauty in imperfection, transience, and simplicity.
 
 **Live**: hikaku.app (Vercel)
 **Repo**: github.com/MaxXxiMast/hikaku
@@ -23,7 +23,7 @@ Hikaku is a YouTube channel comparison platform that lets users compare up to 4 
 | Client State | None (component-local + next-themes) | No Zustand/Redux — zero global state in V1 |
 | Theme | next-themes | Dark/light toggle, shadcn standard |
 | Fonts | Zen Kaku Gothic New (body) + Crimson Pro (display/kanji) | Typography |
-| PDF | html2canvas + jsPDF (client-side) | Report export |
+| PDF | html2canvas + jsPDF (client-side) | Report export (deferred to Plan 4) |
 | OG Images | @vercel/og + next/image | Dynamic social previews, thumbnail optimization |
 | Product Analytics | PostHog | Events, funnels, session replays |
 | Web Vitals | Vercel Analytics | Performance monitoring |
@@ -76,9 +76,8 @@ The design follows Wabi-sabi principles: generous negative space, muted earth to
 ```
 src/
 ├── app/                    # Next.js App Router pages
-│   ├── page.tsx            # Landing — channel input
-│   ├── compare/page.tsx    # Live comparison (SSR)
-│   ├── r/[id]/page.tsx     # Cached report (SSR + OG)
+│   ├── page.tsx            # Landing — channel input + loading overlay
+│   ├── r/[id]/page.tsx     # Report view (SSR from Redis/Convex + OG)
 │   ├── r/[id]/expired/     # Expired report + re-gen CTA
 │   └── api/                # Server-side API routes
 │       ├── compare/        # YouTube API proxy + compute
@@ -118,7 +117,7 @@ src/
 ## Data Flow
 
 ```
-User enters 2-4 @handles → POST /api/compare
+User enters 2 @handles → POST /api/compare
 → Server fetches YouTube Data API v3 (channels → playlists → videos)
 → Computes all metrics (engagement, categories, distribution, patterns)
 → Stores raw + computed in Convex (source of truth)
