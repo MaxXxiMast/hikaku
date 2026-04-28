@@ -8,6 +8,7 @@
 - 2026-03-16: Initial draft — product overview, tech stack, design system, pages, report sections, API routes, data types
 - 2026-03-17: Convex backend (ADR-011), analytics-driven development (ADR-012), 6h link expiry, data lifecycle, frontend state (ADR-013)
 - 2026-04-05: Plan 2 metrics engine — fat raw data (ADR-014), forHandle resolution (ADR-015), 15 verdict dimensions with scoring, all sub-type definitions, computation module specs (8.5-8.10), `since` parameter, Zod API validation
+- 2026-04-28: Plan 3 pages + report UI — simple POST (no SSE), 2-channel locked, section-level windowing (no `since` UI), loading UX (rotating content → skeleton → phased reveal), hybrid layout, chart types, PDF deferred to Plan 4, OG images included
 
 ---
 
@@ -152,12 +153,12 @@ Beauty in imperfection, transience, simplicity. Applied to UI:
 
 ### 4.1 Landing Page — `/`
 
-**Purpose**: Input 2-4 YouTube channel handles and initiate comparison.
+**Purpose**: Input 2 YouTube channel handles and initiate comparison.
 
 **Elements**:
 - Logo: 比較 (Crimson Pro) + HIKAKU (Zen Kaku Gothic)
 - Tagline: "Compare · Understand · Decide"
-- Input fields: 2 channel handle inputs by default, "Add channel" button (max 4)
+- Input fields: exactly 2 channel handle inputs (V1 — locked at 2 channels, expandable post-V1)
 - "Compare" button (gold accent)
 - Optional: "Use your own API key" expandable section
 - Theme toggle (sun/moon)
@@ -165,49 +166,41 @@ Beauty in imperfection, transience, simplicity. Applied to UI:
 
 **Behavior**:
 - Channel handles validated on blur (@ prefix auto-added)
-- Minimum 2 channels required to submit
-- On submit: client-side navigation to `/compare?channels=@a,@b`. The compare page opens an SSE connection to `/api/compare` on mount. No form POST redirect — the URL changes via `router.push`, then the page consumes the stream.
+- Both channels required to submit
+- On submit: POST `/api/compare` → loading overlay on landing page → redirect to `/r/{id}` on completion
+- No SSE, no `/compare` page — simple POST → redirect flow (Plan 3 brainstorm Decision 1)
+
+**Loading Experience** (on landing page during 10-20s wait):
+1. Loading overlay with rotating content cards (YouTube facts, channel tips, hikaku hints, wabi-sabi quotes — cycling every 2-3s)
+2. Progress stage text: "Resolving channels...", "Fetching videos...", "Computing metrics..."
+3. On response: navigate to `/r/{id}` with skeleton layout → phased section reveal
 
 **Responsive**:
 - Mobile: stacked inputs, full-width button
 - Desktop: horizontal input row with inline button
 
-### 4.2 Comparison Page — `/compare?channels=@a,@b`
+### 4.2 Report Page — `/r/[id]` (replaces old 4.2 + 4.3)
 
-**Purpose**: Display the full analysis with phased reveal.
+**Purpose**: Display the full comparison report. Serves both fresh comparisons (redirected from landing) and shared links.
 
-**Loading Experience**:
-1. Progress bar at top of page (gold gradient)
-2. Below progress bar: rotating content panel
-   - YouTube facts, channel tips, Hikaku hints, wabi-sabi quotes, progress updates
-3. Sections slide in as computed (fade-up animation, 300ms ease)
+**No separate `/compare` page** — the landing page handles the loading state, then redirects to `/r/{id}` which is the single report view (Plan 3 brainstorm Decision 1).
 
-**Phased Reveal Order**:
+**Phased Reveal Order** (on first visit, sections fade-in with slide-up, 300ms ease):
 ```
-[0s]   Loading screen with facts
-[~2s]  Channel Overview cards appear
-[~4s]  Executive Summary appears
-[~6s]  MoM Viewership chart appears
-[~8s]  Engagement section appears
-[~10s] Growth + Distribution appear
-[~12s] Posting Patterns + Title/SEO appear
-[~14s] Content Categories + Subscriber Efficiency appear
-[~16s] Freshness + Verdict appear
-[~16s] Share/Download bar slides up
+[0ms]    Skeleton layout visible
+[200ms]  Executive Summary + Channel Overview cards
+[600ms]  Engagement Deep Dive
+[1000ms] Monthly Viewership + Growth Trajectory
+[1400ms] View Distribution + Production Patterns
+[1800ms] Title/SEO + Categories
+[2200ms] Subscriber Efficiency + Content Freshness
+[2600ms] Head-to-Head Verdict
+[2800ms] Share bar slides up
 ```
 
 **Sticky Elements**:
-- Top: Channel name pills (scrolled past overview, shows which channels)
-- Bottom: Action bar — "Share Report" + "Download PDF" buttons
-
-**Responsive**:
-- Mobile: single column, sections stacked, charts full-width
-- Tablet: 2-column for 2 channels, scrollable for 3-4
-- Desktop: side-by-side cards matching channel count
-
-### 4.3 Report Page — `/r/[id]`
-
-**Purpose**: Shareable report. Same layout as /compare but reads from Convex.
+- Top: Channel name pills (visible when scrolled past overview)
+- Bottom: Action bar — "Share Report" button (PDF deferred to Plan 4)
 
 **Server-Side**:
 - `generateMetadata()` reads Convex for OG tags
@@ -216,18 +209,20 @@ Beauty in imperfection, transience, simplicity. Applied to UI:
 - OG image: dynamic social card via @vercel/og
 
 **Behavior**:
-- If report exists and is public (within 6h): render full report (SSR, hot cache from Redis)
-- If report link expired (>6h): redirect to `/r/[id]/expired?ch=@a,@b`
+- If report exists and is public (within 6h): render full report (SSR, hot cache from Redis → Convex fallback)
+- If report link expired (>6h): redirect to `/r/[id]/expired`
 - If report ID invalid: 404 page
-- If logged-in user's saved report: always accessible regardless of expiry
 
 **Elements**:
-- Same as /compare but with "Report generated X hours ago" timestamp
-- "Expires in Y hours" indicator (gold, counts down) — only for public shared links
-- Share + Download buttons
-- "Save to account" button (V1.5 — hidden in V1, schema fields exist but UI gated behind auth)
+- "Report generated X hours ago" timestamp
+- "Expires in Y hours" indicator (gold, counts down)
+- Share button (copy URL to clipboard, toast confirmation via Sonner)
 
-### 4.4 Expired Report — `/r/[id]/expired`
+**Responsive**:
+- Mobile: single column, sections stacked, charts full-width
+- Desktop: hybrid layout per section (side-by-side cards, full-width charts/tables)
+
+### 4.3 Expired Report — `/r/[id]/expired`
 
 **Purpose**: Convert expired link visitors into new users.
 
@@ -244,7 +239,7 @@ Beauty in imperfection, transience, simplicity. Applied to UI:
 
 ## 5. Report Sections — Detailed Specification
 
-Each section is an independent React component that receives computed data as props. All sections must handle 2, 3, or 4 channel layouts.
+Each section is an independent React component that receives computed data as props. V1 handles 2-channel layout only (3-4 channel UI deferred post-V1). Channel colors passed as props: A = gold (`#c5a55a`), B = sage (`#8a9a7a`).
 
 ### 5.1 Executive Summary
 
@@ -264,7 +259,7 @@ Each section is an independent React component that receives computed data as pr
 
 **Data**: Monthly aggregation — videos published, total views, avg views/video, MoM change %.
 **Display**: Multi-line chart (one line per channel) + data table below.
-**Chart**: Recharts `<LineChart>` with channel colors, gold grid lines, muted axis labels.
+**Chart**: Recharts `<BarChart>` — discrete months, bars are clearer than lines. Channel colors, gold grid lines, muted axis labels.
 **Component**: `<MonthlyViewership />`
 
 ### 5.4 Engagement Deep Dive
@@ -289,7 +284,7 @@ Each section is an independent React component that receives computed data as pr
 
 **Data**: Upload frequency, day-of-week performance, hour-of-day performance, duration sweet spot.
 **Display**: Upload consistency metrics, day heatmap, hour heatmap, duration performance table.
-**Chart**: Heatmap using Recharts `<ScatterChart>` or custom grid.
+**Chart**: CSS grid heatmap (styled `<div>` grid with background-color intensity) — Recharts has no native heatmap; custom grid is simpler and more controllable.
 **Component**: `<ProductionPatterns />`
 
 ### 5.8 Title & SEO Analysis
@@ -334,51 +329,40 @@ Each section is an independent React component that receives computed data as pr
 **Input**:
 ```typescript
 {
-  channels: string[]       // 2-4 YouTube handles
+  channels: string[]       // 2 YouTube handles (V1 — API accepts 2-4 for future expansion)
   apiKey?: string          // Optional user-provided YouTube API key
-  since?: string           // ISO 8601 date — time window for video fetching (default: 4 months ago)
 }
 ```
 
-**Process**:
-1. Validate input (2-4 handles, rate limit check via Redis)
-2. Resolve handles to channel data via `forHandle` parameter on Channels endpoint (1 quota unit per channel, see [ADR-015](../adrs/015-channel-resolution-forhandle.md)). Atomic fail — all channels must resolve or comparison fails.
-3. Fetch videos via uploads playlist (YouTube playlistItems + videos APIs), stopping when `publishedAt < since`. Default `since`: 4 months ago. Channel-level all-time stats already fetched in step 2.
-5. Compute all metrics (engagement, categories, distribution, patterns, etc.)
-6. Store raw + computed data in Convex (source of truth)
-7. Cache computed metrics in Redis (hot cache, 4h TTL)
-8. Set report as public with 6h expiry (Convex scheduled job)
-9. If logged in (V1.5): save to user's search history in Convex
-10. Track `comparison_completed` event (PostHog)
-11. Return report ID + computed data
+**Process** (simple POST → JSON response, no SSE):
+1. Validate input (Zod schema from `lib/validations.ts`, rate limit check via Redis)
+2. Resolve all channels via `resolveChannel` (atomic fail — all must resolve or request fails)
+3. Fetch ALL videos per channel via `fetchAllVideos` (no `since` filter — section-level windowing handles time ranges)
+4. Compute full report via `computeReport(channels, videosByChannel, { referenceDate: new Date() })`
+5. Generate `reportId` via nanoid
+6. Store raw + computed in Convex (graceful — log failure but don't block response)
+7. Cache computed in Redis (4h TTL, graceful)
+8. Track `comparison_completed` event (PostHog)
+9. Return `{ reportId, data }`
 
 **Output**:
 ```typescript
 {
-  reportId: string         // nanoid for shareable URL
+  reportId: string         // Convex document ID for shareable URL
   data: ComputedReport     // Full computed metrics
 }
 ```
 
-**Streaming**: Use Server-Sent Events (SSE) to stream progress updates:
-```
-event: progress
-data: { stage: "resolving", message: "Resolving channel handles..." }
+**Error handling** (atomic on compute, graceful on storage):
+- Channel not found → 404 with handle name
+- Rate limited → 429 with retry-after header
+- YouTube API quota exhausted → 503 with user-friendly message
+- Invalid input → 400 with Zod validation errors
+- Convex/Redis write failure → log error, still return report to client
 
-event: progress
-data: { stage: "fetching", message: "Fetching 239 videos for Wint Wealth..." }
+**Rate Limiting**: 10 requests per IP per hour (existing `checkRateLimit` in `lib/rate-limit.ts`).
 
-event: section
-data: { section: "overview", data: { ... } }
-
-event: section
-data: { section: "engagement", data: { ... } }
-
-event: complete
-data: { reportId: "abc123" }
-```
-
-**Rate Limiting**: 10 requests per IP per hour.
+**No SSE** — total wait is 10-20s. Loading UX on the landing page covers this. SSE deferred to post-V1.
 
 ### 6.2 GET /api/report/[id]
 
@@ -777,7 +761,23 @@ Inline (no separate module):
 
 Accepts `referenceDate: Date` parameter for deterministic date-dependent computation (contentFreshness, growth). No `new Date()` calls inside — caller passes the reference date.
 
-### 8.10 API Response Validation
+### 8.10 Section-Level Windowing
+
+The API route fetches ALL videos per channel (no `since` filter). Each computation module internally selects the appropriate time window for its analysis:
+
+- **All-time**: engagement overall, distribution, patterns, titles, categories, subscriber efficiency, overview
+- **Overlapping period**: engagement monthly — auto-detect months where ALL channels were active, compare only those months
+- **Age-normalized (First-N-Months)**: growth — use `min(channel ages)`, slice each channel's first N months for fair comparison
+- **Last 30 days**: content freshness — relative to `referenceDate`
+- **Mixed**: verdict — each dimension uses the window from its source section
+
+This makes the platform a "no-brainer" — user enters channels, gets all analysis types automatically. No time range selector needed.
+
+**Enrichments to existing Plan 2 modules**:
+- `computeEngagement` → add `overlappingMonthly` sub-result: filter monthly data to months where all channels have videos
+- `computeGrowth` → add `firstNMonths` sub-result: slice each channel's data to `min(channel ages)` months from their respective start dates
+
+### 8.11 API Response Validation
 
 YouTube API responses are validated through Zod schemas at the `client.ts` boundary before normalization into `RawVideo`/`RawChannel` interfaces. This replaces ad-hoc `|| 0` fallbacks with a declared schema. See [ADR-014](../adrs/014-fat-raw-data-storage.md).
 
