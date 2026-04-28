@@ -490,7 +490,7 @@ After Plan 1 execution, jumping straight to Plan 2 without brainstorming was cau
 | 4: Planning | Implementation plan | `docs/plans/` | Yes per version |
 | 5: Execution | Code + tests + commits | `src/`, feature branch | Mutable (active development) |
 | 6: Review | Review results + merged PR | GitHub PR | Yes (PR is immutable after merge) |
-| 7: Retro | Learnings + SDLC update | `docs/sdlc/`, `docs/brainstorm/` | SDLC: Yes per version |
+| 7: Retro | Learnings + SDLC update | `docs/retros/`, `docs/sdlc/` | SDLC: Yes per version |
 | Always | Project instructions | `.claude/CLAUDE.md` | Updated (living document) |
 
 ---
